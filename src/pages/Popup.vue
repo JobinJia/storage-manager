@@ -5,9 +5,13 @@ import Settings from './components/Settings.vue'
 </script>
 
 <template>
-  <div class="w-200 h-auto flex flex-col items-start">
+  <div class="flex h-[500px] w-[600px] flex-col overflow-hidden rounded-xl border border-border/60 bg-background/95 shadow-lg">
     <Header />
-    <Settings />
-    <Content />
+    <div class="flex flex-1 flex-col gap-2 px-3 py-2 overflow-hidden">
+      <Settings />
+      <div class="flex-1 overflow-hidden">
+        <Content />
+      </div>
+    </div>
   </div>
 </template>

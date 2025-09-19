@@ -30,10 +30,20 @@ onMounted(updateCurrentUrl)
 </script>
 
 <template>
-  <div class="w-full h-auto flex flex-row items-center justify-between px-2 py-1 border-b border-b-border">
-    <h4 class="font-bold text-sm">
-      Storage Manager
-    </h4>
-    <span>{{ currentHost }}</span>
-  </div>
+  <header class="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
+    <div class="flex flex-col">
+      <h1 class="text-sm font-semibold leading-tight">
+        Storage Manager
+      </h1>
+      <p class="text-[11px] text-muted-foreground">
+        快速查看并管理当前标签页的存储
+      </p>
+    </div>
+    <span
+      :title="currentHost"
+      class="max-w-[200px] truncate rounded-full bg-secondary/80 px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground"
+    >
+      {{ currentHost || '加载中…' }}
+    </span>
+  </header>
 </template>

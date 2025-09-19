@@ -371,64 +371,98 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="w-full h-auto flex flex-col gap-4 p-4">
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger>
-          <div class="flex items-center">
-            <Label>复制模式：</Label>
-            <Switch id="airplane-mode" v-model="copyType" class="ml-2" />
-            <Label for="airplane-mode" class="ml-2">{{ copyType ? 'js代码' : '值' }}</Label>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>`js代码`将会复制为storage.setItem(key, value)</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger>
-          <div class="flex flex-wrap items-center gap-2">
-            <Label>指定同步 URL：</Label>
-            <input
-              v-model="syncUrl"
-              type="text"
-              placeholder="请输入页面URL"
-              class="ml-2 w-60 rounded border border-border px-2 py-1 text-sm"
+  <section class="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/80 px-3 py-2 shadow-sm">
+    <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <Label for="copy-mode-switch" class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          复制模式
+        </Label>
+        <Switch id="copy-mode-switch" v-model="copyType" class="scale-75" />
+        <span class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+          {{ copyType ? 'JS 代码' : '值' }}
+        </span>
+      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <button
+              type="button"
+              class="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
             >
-            <Button
-              size="sm"
-              :disabled="syncing || !syncUrl"
-              @click="handleSyncFromUrl"
-            >
-              {{ syncing ? '同步中…' : '同步' }}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              :disabled="saving || !activeHost"
-              @click="saveSyncUrlConfig"
-            >
-              {{ saving ? '保存中…' : '保存配置' }}
-            </Button>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>读取指定页面的 storage 并同步到当前页面</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-    <div class="flex items-center gap-2">
+              ?
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>`js代码`将会复制为storage.setItem(key, value)</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2 text-xs">
+      <div class="flex min-w-[200px] flex-1 items-center gap-2">
+        <Label for="sync-url-input" class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          指定同步 URL
+        </Label>
+        <input
+          id="sync-url-input"
+          v-model="syncUrl"
+          type="text"
+          placeholder="请输入页面 URL"
+          class="flex-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
+        >
+      </div>
+      <div class="flex items-center gap-2">
+        <Button
+          size="sm"
+          class="h-7 px-2 text-xs"
+          :disabled="syncing || !syncUrl"
+          @click="handleSyncFromUrl"
+        >
+          {{ syncing ? '同步中…' : '同步' }}
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          class="h-7 px-2 text-xs"
+          :disabled="saving || !activeHost"
+          @click="saveSyncUrlConfig"
+        >
+          {{ saving ? '保存中…' : '保存配置' }}
+        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <button
+                type="button"
+                class="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+              >
+                ?
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>读取指定页面的 storage 并同步到当前页面</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center justify-between gap-2">
       <Button
         size="sm"
         variant="destructive"
+        class="h-7 px-2 text-xs"
         :disabled="clearing"
         @click="openClearDialog"
       >
         {{ clearing ? '清除中…' : '清除全部' }}
       </Button>
+      <p v-if="statusMessage" class="text-[11px] font-medium text-muted-foreground">
+        {{ statusMessage }}
+      </p>
     </div>
+
     <AlertDialog
       v-model:open="clearDialogOpen"
       title="确认清除全部？"
@@ -436,8 +470,5 @@ onMounted(() => {
       @ok="clearAllStorage"
       @cancel="closeClearDialog"
     />
-    <p v-if="statusMessage" class="text-sm text-muted-foreground">
-      {{ statusMessage }}
-    </p>
-  </div>
+  </section>
 </template>
