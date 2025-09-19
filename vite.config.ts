@@ -32,6 +32,11 @@ export default defineConfig({
     webExtension({
       manifest: generateManifest,
       watchFilePaths: ['package.json', 'manifest.json'],
+      htmlViteConfig: {
+        server: {
+          port: 5000,
+        },
+      },
     }),
   ],
 })

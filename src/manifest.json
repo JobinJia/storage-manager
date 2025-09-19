@@ -21,6 +21,13 @@
   "permissions": [
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "tabs"
+  ],
+  "{{chrome}}.host_permissions": [
+    "<all_urls>"
+  ],
+  "{{firefox}}.permissions": [
+    "<all_urls>"
   ]
 }

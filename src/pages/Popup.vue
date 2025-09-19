@@ -5,7 +5,7 @@ import Settings from './components/Settings.vue'
 </script>
 
 <template>
-  <div class="w-200">
+  <div class="w-200 h-auto flex flex-col items-start">
     <Header />
     <Settings />
     <Content />
