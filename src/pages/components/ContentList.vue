@@ -10,7 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
-import { Copy, Trash2 } from 'lucide-vue-next'
+import { Copy, Plus, Trash2 } from 'lucide-vue-next'
 import { useStore } from '@/store'
 import AlertDialog from './AlertDialog.vue'
 
@@ -33,6 +33,9 @@ const { storeData } = useStore()
 const copyAsJsSnippet = computed(() => storeData.value.copyType)
 const deleteDialogOpen = ref(false)
 const pendingDelete = ref<StorageEntry | null>(null)
+const newEntryKey = ref('')
+const newEntryValue = ref('')
+const adding = ref(false)
 
 async function fetchStorageData() {
   if (typeof chrome === 'undefined' || !chrome.tabs?.query || !chrome.scripting?.executeScript)
@@ -166,6 +169,48 @@ async function saveEditingCell() {
   const persisted = await persistStorageUpdate(originalName, updatedEntry)
   if (!persisted)
     loadStorageData()
+}
+
+async function handleAddEntry() {
+  if (adding.value)
+    return
+
+  const key = newEntryKey.value.trim()
+  if (!key) {
+    showFeedback('请输入键名')
+    return
+  }
+
+  const value = newEntryValue.value
+  const nextEntry: StorageEntry = { name: key, value }
+
+  adding.value = true
+  const existingIndex = currentData.value.findIndex(entry => entry.name === key)
+  const optimistic = [...currentData.value]
+  if (existingIndex === -1)
+    optimistic.unshift(nextEntry)
+  else
+    optimistic[existingIndex] = nextEntry
+  currentData.value = optimistic
+
+  try {
+    const persisted = await persistStorageUpdate(key, nextEntry)
+    if (!persisted) {
+      showFeedback('保存失败，请重试')
+      loadStorageData()
+      return
+    }
+
+    showFeedback(existingIndex === -1 ? `已添加 ${key}` : `已更新 ${key}`)
+    newEntryKey.value = ''
+    newEntryValue.value = ''
+  } catch (error) {
+    console.warn('Add storage entry failed', error)
+    showFeedback('保存失败，请重试')
+    loadStorageData()
+  } finally {
+    adding.value = false
+  }
 }
 
 function showFeedback(message: string) {
@@ -326,12 +371,37 @@ watch(deleteDialogOpen, (isOpen) => {
       {{ feedbackMessage }}
     </div>
     <div class="flex-1 overflow-hidden rounded-lg border border-border/60 bg-card shadow-sm">
-      <div class="h-full overflow-y-auto overflow-x-hidden">
-        <Table class="w-full table-fixed text-xs">
-          <TableHeader class="sticky top-0 z-10 bg-card/95 backdrop-blur">
-            <TableRow class="text-[11px] uppercase tracking-wide text-muted-foreground">
-              <TableHead class="w-[32%] pr-3">键</TableHead>
-              <TableHead class="pr-3">值</TableHead>
+      <div class="flex h-full flex-col">
+        <div class="flex flex-wrap items-center gap-2 border-b border-border/60 bg-card/70 px-3 py-2">
+          <input
+            v-model="newEntryKey"
+            type="text"
+            placeholder="键名"
+            class="h-7 w-32 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+            @keyup.enter.prevent="handleAddEntry"
+          >
+          <input
+            v-model="newEntryValue"
+            type="text"
+            placeholder="值"
+            class="h-7 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+            @keyup.enter.prevent="handleAddEntry"
+          >
+          <Button
+            size="xs"
+            :disabled="adding || !newEntryKey.trim()"
+            @click="handleAddEntry"
+          >
+            <Plus class="h-3.5 w-3.5" />
+            <span>{{ adding ? '保存中…' : '添加' }}</span>
+          </Button>
+        </div>
+        <div class="flex-1 overflow-y-auto overflow-x-hidden">
+          <Table class="w-full table-fixed text-xs">
+            <TableHeader class="sticky top-0 z-10 bg-card/95 backdrop-blur">
+              <TableRow class="text-[11px] uppercase tracking-wide text-muted-foreground">
+                <TableHead class="w-[32%] pr-3">键</TableHead>
+                <TableHead class="pr-3">值</TableHead>
               <TableHead class="w-[76px] text-right">操作</TableHead>
             </TableRow>
           </TableHeader>
@@ -379,18 +449,18 @@ watch(deleteDialogOpen, (isOpen) => {
               <TableCell class="align-middle text-right">
                 <div class="inline-flex items-center justify-end gap-1.5">
                   <Button
-                    size="sm"
+                    size="xs"
                     variant="ghost"
-                    class="h-7 w-7 p-0 text-muted-foreground hover:bg-muted/60"
+                    class="w-7 justify-center px-0 text-muted-foreground hover:bg-muted/60"
                     @click.stop="copyEntry(item)"
                   >
                     <Copy class="h-3.5 w-3.5" />
                     <span class="sr-only">复制</span>
                   </Button>
                   <Button
-                    size="sm"
+                    size="xs"
                     variant="ghost"
-                    class="h-7 w-7 p-0 text-destructive hover:bg-destructive/10"
+                    class="w-7 justify-center px-0 text-destructive hover:bg-destructive/10"
                     @click.stop="openDeleteDialog(item)"
                   >
                     <Trash2 class="h-3.5 w-3.5" />
@@ -408,7 +478,8 @@ watch(deleteDialogOpen, (isOpen) => {
           <TableCaption class="px-3 py-2 text-left text-[11px] text-muted-foreground">
             双击字段可编辑，右键行内容可快速复制
           </TableCaption>
-        </Table>
+          </Table>
+        </div>
       </div>
     </div>
     <AlertDialog

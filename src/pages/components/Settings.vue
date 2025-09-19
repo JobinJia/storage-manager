@@ -419,13 +419,12 @@ onMounted(() => {
           v-model="syncUrl"
           type="text"
           placeholder="请输入页面 URL"
-          class="flex-1 rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
+          class="h-7 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
         >
       </div>
       <div class="flex items-center gap-2">
         <Button
-          size="sm"
-          class="h-7 px-2 text-xs"
+          size="xs"
           :disabled="syncing || !syncUrl"
           @click="handleSyncFromUrl"
         >
@@ -433,9 +432,8 @@ onMounted(() => {
           <span>{{ syncing ? '同步中…' : '同步' }}</span>
         </Button>
         <Button
-          size="sm"
+          size="xs"
           variant="outline"
-          class="h-7 px-2 text-xs"
           :disabled="saving || !activeHost"
           @click="saveSyncUrlConfig"
         >
@@ -463,9 +461,8 @@ onMounted(() => {
 
     <div class="flex flex-wrap items-center justify-between gap-2">
       <Button
-        size="sm"
+        size="xs"
         variant="destructive"
-        class="h-7 px-2 text-xs"
         :disabled="clearing"
         @click="openClearDialog"
       >
