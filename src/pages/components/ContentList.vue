@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { Copy, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { Button } from '@/components/ui/button'
 import {
   Table,
   TableBody,
@@ -9,8 +11,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { Copy, Plus, Trash2 } from 'lucide-vue-next'
 import { useStore } from '@/store'
 import AlertDialog from './AlertDialog.vue'
 
@@ -400,84 +400,90 @@ watch(deleteDialogOpen, (isOpen) => {
           <Table class="w-full table-fixed text-xs">
             <TableHeader class="sticky top-0 z-10 bg-card/95 backdrop-blur">
               <TableRow class="text-[11px] uppercase tracking-wide text-muted-foreground">
-                <TableHead class="w-[32%] pr-3">键</TableHead>
-                <TableHead class="pr-3">值</TableHead>
-              <TableHead class="w-[76px] text-right">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow
-              v-for="item in currentData"
-              :key="item.name"
-              class="cursor-pointer select-none border-b border-border/60 text-xs transition hover:bg-muted/40"
-              @contextmenu.prevent="copyEntry(item, $event)"
-            >
-              <TableCell class="pr-3 align-middle font-medium" @dblclick.stop="startEditingCell(item, 'name')">
-                <template v-if="editingCell && editingCell.key === item.name && editingCell.field === 'name'">
-                  <input
-                    v-model="editingValue"
-                    class="w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    autofocus
-                    @blur="saveEditingCell"
-                    @keyup.enter.prevent="saveEditingCell"
-                    @keyup.esc.prevent="cancelEditingCell"
-                  >
-                </template>
-                <template v-else>
-                  <span class="block overflow-hidden text-ellipsis whitespace-nowrap">
-                    {{ item.name }}
-                  </span>
-                </template>
-              </TableCell>
-              <TableCell class="pr-3 align-middle" @dblclick.stop="startEditingCell(item, 'value')">
-                <template v-if="editingCell && editingCell.key === item.name && editingCell.field === 'value'">
-                  <input
-                    v-model="editingValue"
-                    class="w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    autofocus
-                    @blur="saveEditingCell"
-                    @keyup.enter.prevent="saveEditingCell"
-                    @keyup.esc.prevent="cancelEditingCell"
-                  >
-                </template>
-                <template v-else>
-                  <span class="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-muted-foreground">
-                    {{ item.value }}
-                  </span>
-                </template>
-              </TableCell>
-              <TableCell class="align-middle text-right">
-                <div class="inline-flex items-center justify-end gap-1.5">
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    class="w-7 justify-center px-0 text-muted-foreground hover:bg-muted/60"
-                    @click.stop="copyEntry(item)"
-                  >
-                    <Copy class="h-3.5 w-3.5" />
-                    <span class="sr-only">复制</span>
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    class="w-7 justify-center px-0 text-destructive hover:bg-destructive/10"
-                    @click.stop="openDeleteDialog(item)"
-                  >
-                    <Trash2 class="h-3.5 w-3.5" />
-                    <span class="sr-only">删除</span>
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-            <TableRow v-if="!currentData.length">
-              <TableCell colspan="3" class="py-8 text-center text-xs text-muted-foreground">
-                暂无数据，尝试刷新或切换标签页
-              </TableCell>
-            </TableRow>
-          </TableBody>
-          <TableCaption class="px-3 py-2 text-left text-[11px] text-muted-foreground">
-            双击字段可编辑，右键行内容可快速复制
-          </TableCaption>
+                <TableHead class="w-[32%] pr-3">
+                  键
+                </TableHead>
+                <TableHead class="pr-3">
+                  值
+                </TableHead>
+                <TableHead class="w-[76px] text-right">
+                  操作
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow
+                v-for="item in currentData"
+                :key="item.name"
+                class="cursor-pointer select-none border-b border-border/60 text-xs transition hover:bg-muted/40"
+                @contextmenu.prevent="copyEntry(item, $event)"
+              >
+                <TableCell class="pr-3 align-middle font-medium" @dblclick.stop="startEditingCell(item, 'name')">
+                  <template v-if="editingCell && editingCell.key === item.name && editingCell.field === 'name'">
+                    <input
+                      v-model="editingValue"
+                      class="w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      autofocus
+                      @blur="saveEditingCell"
+                      @keyup.enter.prevent="saveEditingCell"
+                      @keyup.esc.prevent="cancelEditingCell"
+                    >
+                  </template>
+                  <template v-else>
+                    <span class="block overflow-hidden text-ellipsis whitespace-nowrap">
+                      {{ item.name }}
+                    </span>
+                  </template>
+                </TableCell>
+                <TableCell class="pr-3 align-middle" @dblclick.stop="startEditingCell(item, 'value')">
+                  <template v-if="editingCell && editingCell.key === item.name && editingCell.field === 'value'">
+                    <input
+                      v-model="editingValue"
+                      class="w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      autofocus
+                      @blur="saveEditingCell"
+                      @keyup.enter.prevent="saveEditingCell"
+                      @keyup.esc.prevent="cancelEditingCell"
+                    >
+                  </template>
+                  <template v-else>
+                    <span class="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-muted-foreground">
+                      {{ item.value }}
+                    </span>
+                  </template>
+                </TableCell>
+                <TableCell class="align-middle text-right">
+                  <div class="inline-flex items-center justify-end gap-1.5">
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      class="w-7 justify-center px-0 text-muted-foreground hover:bg-muted/60"
+                      @click.stop="copyEntry(item)"
+                    >
+                      <Copy class="h-3.5 w-3.5" />
+                      <span class="sr-only">复制</span>
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      class="w-7 justify-center px-0 text-destructive hover:bg-destructive/10"
+                      @click.stop="openDeleteDialog(item)"
+                    >
+                      <Trash2 class="h-3.5 w-3.5" />
+                      <span class="sr-only">删除</span>
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+              <TableRow v-if="!currentData.length">
+                <TableCell colspan="3" class="py-8 text-center text-xs text-muted-foreground">
+                  暂无数据，尝试刷新或切换标签页
+                </TableCell>
+              </TableRow>
+            </TableBody>
+            <TableCaption class="px-3 py-2 text-left text-[11px] text-muted-foreground">
+              双击字段可编辑，右键行内容可快速复制
+            </TableCaption>
           </Table>
         </div>
       </div>

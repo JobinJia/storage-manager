@@ -1,6 +1,6 @@
 <script lang="ts" setup>
-import { onMounted, ref } from 'vue'
 import { Globe, HardDrive, Sparkles } from 'lucide-vue-next'
+import { onMounted, ref } from 'vue'
 
 const currentHost = ref('')
 

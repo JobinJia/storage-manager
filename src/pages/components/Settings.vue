@@ -1,4 +1,5 @@
 <script lang="ts" setup>
+import { ArrowDownToLine, Copy as CopyIcon, Info, Link2, Save, Trash2 } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -10,7 +11,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useStore } from '@/store'
-import { ArrowDownToLine, Copy as CopyIcon, Info, Link2, Save, Trash2 } from 'lucide-vue-next'
 
 import AlertDialog from './AlertDialog.vue'
 
@@ -266,7 +266,7 @@ function extractHost(url: string) {
   try {
     return new URL(url).host
   } catch (error) {
-    const match = url.match(/^(?:[a-zA-Z][a-zA-Z\d+.-]*:\/\/)?([^\/@?#]+)/)
+    const match = url.match(/^(?:[a-z][a-z\d+.-]*:\/\/)?([^/@?#]+)/i)
     return match?.[1] ?? ''
   }
 }
