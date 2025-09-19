@@ -4,6 +4,14 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name to publish (e.g. v1.2.3)'
+        required: true
+      release_name:
+        description: 'Optional release title'
+        required: false
 
 permissions:
   contents: write
@@ -48,6 +56,9 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_name || github.ref_name }}
           files: storage-manager.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
