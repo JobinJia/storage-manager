@@ -322,57 +322,57 @@ watch(deleteDialogOpen, (isOpen) => {
   >
     {{ feedbackMessage }}
   </div>
-  <Table>
-    <TableCaption>A list of your recent invoices.</TableCaption>
-    <TableBody>
-      <TableRow
-        v-for="item in currentData"
-        :key="item.name"
-        class="select-none"
-        @contextmenu.prevent="copyEntry(item, $event)"
-      >
-        <TableCell class="font-medium" @dblclick.stop="startEditingCell(item, 'name')">
-          <template v-if="editingCell && editingCell.key === item.name && editingCell.field === 'name'">
-            <input
-              v-model="editingValue"
-              class="w-full rounded border border-border px-1 py-0.5"
-              autofocus
-              @blur="saveEditingCell"
-              @focusout="saveEditingCell"
-              @keyup.enter.prevent="saveEditingCell"
-              @keyup.esc.prevent="cancelEditingCell"
+  <div class="max-h-[360px] overflow-y-auto rounded border border-border">
+    <Table class="min-w-full">
+      <TableBody>
+        <TableRow
+          v-for="item in currentData"
+          :key="item.name"
+          class="select-none"
+          @contextmenu.prevent="copyEntry(item, $event)"
+        >
+          <TableCell class="font-medium" @dblclick.stop="startEditingCell(item, 'name')">
+            <template v-if="editingCell && editingCell.key === item.name && editingCell.field === 'name'">
+              <input
+                v-model="editingValue"
+                class="w-full rounded border border-border px-1 py-0.5"
+                autofocus
+                @blur="saveEditingCell"
+                @keyup.enter.prevent="saveEditingCell"
+                @keyup.esc.prevent="cancelEditingCell"
+              >
+            </template>
+            <template v-else>
+              {{ item.name }}
+            </template>
+          </TableCell>
+          <TableCell class="truncate max-w-[120px]" @dblclick.stop="startEditingCell(item, 'value')">
+            <template v-if="editingCell && editingCell.key === item.name && editingCell.field === 'value'">
+              <input
+                v-model="editingValue"
+                class="w-full rounded border border-border px-1 py-0.5"
+                autofocus
+                @blur="saveEditingCell"
+                @keyup.enter.prevent="saveEditingCell"
+                @keyup.esc.prevent="cancelEditingCell"
+              >
+            </template>
+            <template v-else>
+              {{ item.value }}
+            </template>
+          </TableCell>
+          <TableCell>
+            <button
+              class="px-2 py-1 rounded bg-red-500 text-white text-sm hover:bg-red-600"
+              @click.stop="openDeleteDialog(item)"
             >
-          </template>
-          <template v-else>
-            {{ item.name }}
-          </template>
-        </TableCell>
-        <TableCell class="truncate max-w-[120px]" @dblclick.stop="startEditingCell(item, 'value')">
-          <template v-if="editingCell && editingCell.key === item.name && editingCell.field === 'value'">
-            <input
-              v-model="editingValue"
-              class="w-full rounded border border-border px-1 py-0.5"
-              autofocus
-              @blur="saveEditingCell"
-              @keyup.enter.prevent="saveEditingCell"
-              @keyup.esc.prevent="cancelEditingCell"
-            >
-          </template>
-          <template v-else>
-            {{ item.value }}
-          </template>
-        </TableCell>
-        <TableCell>
-          <button
-            class="px-2 py-1 rounded bg-red-500 text-white text-sm hover:bg-red-600"
-            @click.stop="openDeleteDialog(item)"
-          >
-            删除
-          </button>
-        </TableCell>
-      </TableRow>
-    </TableBody>
-  </Table>
+              删除
+            </button>
+          </TableCell>
+        </TableRow>
+      </TableBody>
+    </Table>
+  </div>
   <AlertDialog
     v-model:open="deleteDialogOpen"
     :title="pendingDelete ? `确认删除 ${pendingDelete.name}？` : '确认删除？'"
