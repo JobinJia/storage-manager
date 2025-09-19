@@ -10,6 +10,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useStore } from '@/store'
+import { ArrowDownToLine, Copy as CopyIcon, Info, Link2, Save, Trash2 } from 'lucide-vue-next'
 
 import AlertDialog from './AlertDialog.vue'
 
@@ -374,8 +375,12 @@ onMounted(() => {
   <section class="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/80 px-3 py-2 shadow-sm">
     <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
       <div class="flex flex-wrap items-center gap-1.5">
-        <Label for="copy-mode-switch" class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          复制模式
+        <Label
+          for="copy-mode-switch"
+          class="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+        >
+          <CopyIcon class="h-3.5 w-3.5" />
+          <span>复制模式</span>
         </Label>
         <Switch id="copy-mode-switch" v-model="copyType" class="scale-75" />
         <span class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
@@ -387,9 +392,10 @@ onMounted(() => {
           <TooltipTrigger as-child>
             <button
               type="button"
-              class="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+              class="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
             >
-              ?
+              <Info class="h-3.5 w-3.5" />
+              <span class="sr-only">复制模式说明</span>
             </button>
           </TooltipTrigger>
           <TooltipContent>
@@ -401,8 +407,12 @@ onMounted(() => {
 
     <div class="flex flex-wrap items-center gap-2 text-xs">
       <div class="flex min-w-[200px] flex-1 items-center gap-2">
-        <Label for="sync-url-input" class="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          指定同步 URL
+        <Label
+          for="sync-url-input"
+          class="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+        >
+          <Link2 class="h-3.5 w-3.5" />
+          <span>指定同步 URL</span>
         </Label>
         <input
           id="sync-url-input"
@@ -419,7 +429,8 @@ onMounted(() => {
           :disabled="syncing || !syncUrl"
           @click="handleSyncFromUrl"
         >
-          {{ syncing ? '同步中…' : '同步' }}
+          <ArrowDownToLine class="h-3.5 w-3.5" />
+          <span>{{ syncing ? '同步中…' : '同步' }}</span>
         </Button>
         <Button
           size="sm"
@@ -428,16 +439,18 @@ onMounted(() => {
           :disabled="saving || !activeHost"
           @click="saveSyncUrlConfig"
         >
-          {{ saving ? '保存中…' : '保存配置' }}
+          <Save class="h-3.5 w-3.5" />
+          <span>{{ saving ? '保存中…' : '保存配置' }}</span>
         </Button>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger as-child>
               <button
                 type="button"
-                class="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-[11px] font-semibold text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                class="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
               >
-                ?
+                <Info class="h-3.5 w-3.5" />
+                <span class="sr-only">同步说明</span>
               </button>
             </TooltipTrigger>
             <TooltipContent>
@@ -456,7 +469,8 @@ onMounted(() => {
         :disabled="clearing"
         @click="openClearDialog"
       >
-        {{ clearing ? '清除中…' : '清除全部' }}
+        <Trash2 class="h-3.5 w-3.5" />
+        <span>{{ clearing ? '清除中…' : '清除全部' }}</span>
       </Button>
       <p v-if="statusMessage" class="text-[11px] font-medium text-muted-foreground">
         {{ statusMessage }}
