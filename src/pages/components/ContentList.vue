@@ -36,6 +36,14 @@ const pendingDelete = ref<StorageEntry | null>(null)
 const newEntryKey = ref('')
 const newEntryValue = ref('')
 const adding = ref(false)
+const searchKey = ref('')
+
+const filteredData = computed(() => {
+  const query = searchKey.value.trim().toLowerCase()
+  if (!query)
+    return currentData.value
+  return currentData.value.filter(entry => entry.name.toLowerCase().includes(query))
+})
 
 async function fetchStorageData() {
   if (typeof chrome === 'undefined' || !chrome.tabs?.query || !chrome.scripting?.executeScript)
@@ -349,6 +357,7 @@ async function confirmDelete() {
 }
 
 watch(() => type, () => {
+  searchKey.value = ''
   loadStorageData()
 }, { immediate: true })
 
@@ -372,29 +381,40 @@ watch(deleteDialogOpen, (isOpen) => {
     </div>
     <div class="flex-1 overflow-hidden rounded-lg border border-border/60 bg-card shadow-sm">
       <div class="flex h-full flex-col">
-        <div class="flex flex-wrap items-center gap-2 border-b border-border/60 bg-card/70 px-3 py-2">
-          <input
-            v-model="newEntryKey"
-            type="text"
-            placeholder="键名"
-            class="h-7 w-32 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
-            @keyup.enter.prevent="handleAddEntry"
-          >
-          <input
-            v-model="newEntryValue"
-            type="text"
-            placeholder="值"
-            class="h-7 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
-            @keyup.enter.prevent="handleAddEntry"
-          >
-          <Button
-            size="xs"
-            :disabled="adding || !newEntryKey.trim()"
-            @click="handleAddEntry"
-          >
-            <Plus class="h-3.5 w-3.5" />
-            <span>{{ adding ? '保存中…' : '添加' }}</span>
-          </Button>
+        <div class="flex flex-col gap-2 border-b border-border/60 bg-card/70 px-3 py-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <input
+              v-model="newEntryKey"
+              type="text"
+              placeholder="键名"
+              class="h-7 min-w-[128px] flex-1 rounded-md border border-border/60 bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+              @keyup.enter.prevent="handleAddEntry"
+            >
+            <input
+              v-model="newEntryValue"
+              type="text"
+              placeholder="值"
+              class="h-7 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+              @keyup.enter.prevent="handleAddEntry"
+            >
+            <Button
+              size="xs"
+              :disabled="adding || !newEntryKey.trim()"
+              @click="handleAddEntry"
+            >
+              <Plus class="h-3.5 w-3.5" />
+              <span>{{ adding ? '保存中…' : '添加' }}</span>
+            </Button>
+          </div>
+          <div>
+            <input
+              v-model="searchKey"
+              type="search"
+              placeholder="搜索键名"
+              class="h-7 w-full rounded-md border border-border/60 bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+              @keyup.esc.prevent="searchKey = ''"
+            >
+          </div>
         </div>
         <div class="flex-1 overflow-y-auto overflow-x-hidden">
           <Table class="w-full table-fixed text-xs">
@@ -413,7 +433,7 @@ watch(deleteDialogOpen, (isOpen) => {
             </TableHeader>
             <TableBody>
               <TableRow
-                v-for="item in currentData"
+                v-for="item in filteredData"
                 :key="item.name"
                 class="cursor-pointer select-none border-b border-border/60 text-xs transition hover:bg-muted/40"
                 @contextmenu.prevent="copyEntry(item, $event)"
@@ -475,9 +495,9 @@ watch(deleteDialogOpen, (isOpen) => {
                   </div>
                 </TableCell>
               </TableRow>
-              <TableRow v-if="!currentData.length">
+              <TableRow v-if="!filteredData.length">
                 <TableCell colspan="3" class="py-8 text-center text-xs text-muted-foreground">
-                  暂无数据，尝试刷新或切换标签页
+                  {{ currentData.length && searchKey.trim() ? '没有匹配的键名' : '暂无数据，尝试刷新或切换标签页' }}
                 </TableCell>
               </TableRow>
             </TableBody>

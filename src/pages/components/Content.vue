@@ -8,7 +8,7 @@ const active = ref('localStorage')
 </script>
 
 <template>
-  <Tabs v-model="active" class="flex h-full flex-col gap-1.5">
+  <Tabs v-model="active" :unmount-on-hide="false" class="flex h-full flex-col gap-1.5">
     <TabsList class="flex gap-1.5 rounded-md bg-muted/50 p-1 shadow-inner">
       <TabsTrigger value="localStorage" class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium">
         <Database class="h-3.5 w-3.5" />
