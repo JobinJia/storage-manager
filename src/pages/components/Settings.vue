@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ArrowDownToLine, Copy as CopyIcon, Info, Link2, Save, Trash2 } from 'lucide-vue-next'
+import { ArrowDownToLine, Copy as CopyIcon, Info, Link2, Save, Trash2, X } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -273,8 +273,10 @@ function extractHost(url: string) {
 
 const SYNC_URL_STORAGE_KEY = 'syncUrlByHost'
 
+type SyncUrlMap = Record<string, string[]>
+
 async function readSyncUrlMap() {
-  return new Promise<Record<string, string>>((resolve) => {
+  return new Promise<SyncUrlMap>((resolve) => {
     if (!chrome.storage?.local) {
       resolve({})
       return
@@ -286,15 +288,26 @@ async function readSyncUrlMap() {
         return
       }
       const map = items?.[SYNC_URL_STORAGE_KEY]
-      if (map && typeof map === 'object')
-        resolve(map as Record<string, string>)
-      else
+      if (map && typeof map === 'object') {
+        // 兼容旧格式: { host: url } -> { host: [url] }
+        const result: SyncUrlMap = {}
+        for (const [host, value] of Object.entries(map)) {
+          if (Array.isArray(value))
+            result[host] = value
+          else if (typeof value === 'string' && value.trim())
+            result[host] = [value]
+          else
+            result[host] = []
+        }
+        resolve(result)
+      } else {
         resolve({})
+      }
     })
   })
 }
 
-async function writeSyncUrlMap(map: Record<string, string>) {
+async function writeSyncUrlMap(map: SyncUrlMap) {
   return new Promise<void>((resolve, reject) => {
     if (!chrome.storage?.local) {
       resolve()
@@ -312,6 +325,9 @@ async function writeSyncUrlMap(map: Record<string, string>) {
   })
 }
 
+const savedUrls = ref<string[]>([])
+const newUrl = ref('')
+
 async function initializeSyncUrl() {
   if (typeof chrome === 'undefined' || !chrome.tabs?.query)
     return
@@ -324,8 +340,10 @@ async function initializeSyncUrl() {
       return
 
     const map = await readSyncUrlMap()
-    const saved = map[host] ?? ''
-    setSyncUrl(saved)
+    const urls = map[host] ?? []
+    savedUrls.value = urls
+    // 默认选中第一个URL
+    setSyncUrl(urls[0] ?? '')
   } catch (error) {
     console.warn('Failed to initialize sync url', error)
   }
@@ -347,22 +365,88 @@ async function saveSyncUrlConfig() {
 
   saving.value = true
 
-  const trimmed = syncUrl.value.trim()
+  // 优先使用 newUrl,如果为空则使用 syncUrl (用于保存第一个URL的场景)
+  const urlToSave = savedUrls.value.length > 0 ? newUrl.value.trim() : syncUrl.value.trim()
+
+  if (!urlToSave) {
+    showStatus('请输入URL')
+    saving.value = false
+    return
+  }
+
+  const normalized = normalizeUrl(urlToSave)
+  if (!normalized) {
+    showStatus('请输入有效的URL')
+    saving.value = false
+    return
+  }
+
   try {
     const map = await readSyncUrlMap()
-    if (trimmed)
-      map[activeHost.value] = trimmed
-    else
-      delete map[activeHost.value]
+    const urls = map[activeHost.value] ?? []
+
+    // 检查是否已存在
+    if (urls.includes(normalized)) {
+      showStatus('URL已存在')
+      saving.value = false
+      return
+    }
+
+    // 添加到数组开头
+    map[activeHost.value] = [normalized, ...urls]
 
     await writeSyncUrlMap(map)
-    setSyncUrl(trimmed)
-    showStatus(trimmed ? '配置已保存' : '已清除配置')
+    savedUrls.value = map[activeHost.value]
+    setSyncUrl(normalized)
+    newUrl.value = ''
+    showStatus('配置已保存')
   } catch (error) {
     console.warn('Save sync URL failed', error)
     showStatus('保存失败，请重试')
   } finally {
     saving.value = false
+  }
+}
+
+async function deleteSyncUrlConfig() {
+  if (!activeHost.value) {
+    showStatus('未识别当前页面')
+    return
+  }
+
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    showStatus('当前环境不支持删除')
+    return
+  }
+
+  const trimmed = syncUrl.value.trim()
+  if (!trimmed) {
+    showStatus('请选择要删除的URL')
+    return
+  }
+
+  try {
+    const map = await readSyncUrlMap()
+    const urls = map[activeHost.value] ?? []
+    const filtered = urls.filter(u => u !== trimmed)
+
+    if (filtered.length === urls.length) {
+      showStatus('URL不存在')
+      return
+    }
+
+    if (filtered.length > 0)
+      map[activeHost.value] = filtered
+    else
+      delete map[activeHost.value]
+
+    await writeSyncUrlMap(map)
+    savedUrls.value = filtered
+    setSyncUrl(filtered[0] ?? '')
+    showStatus('已删除配置')
+  } catch (error) {
+    console.warn('Delete sync URL failed', error)
+    showStatus('删除失败，请重试')
   }
 }
 
@@ -405,8 +489,8 @@ onMounted(() => {
       </TooltipProvider>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2 text-xs">
-      <div class="flex min-w-[200px] flex-1 items-center gap-2">
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center gap-2 text-xs">
         <Label
           for="sync-url-input"
           class="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
@@ -414,32 +498,6 @@ onMounted(() => {
           <Link2 class="h-3.5 w-3.5" />
           <span>指定同步 URL</span>
         </Label>
-        <input
-          id="sync-url-input"
-          v-model="syncUrl"
-          type="text"
-          placeholder="请输入页面 URL"
-          class="h-7 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
-        >
-      </div>
-      <div class="flex items-center gap-2">
-        <Button
-          size="xs"
-          :disabled="syncing || !syncUrl"
-          @click="handleSyncFromUrl"
-        >
-          <ArrowDownToLine class="h-3.5 w-3.5" />
-          <span>{{ syncing ? '同步中…' : '同步' }}</span>
-        </Button>
-        <Button
-          size="xs"
-          variant="outline"
-          :disabled="saving || !activeHost"
-          @click="saveSyncUrlConfig"
-        >
-          <Save class="h-3.5 w-3.5" />
-          <span>{{ saving ? '保存中…' : '保存配置' }}</span>
-        </Button>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger as-child>
@@ -457,6 +515,65 @@ onMounted(() => {
           </Tooltip>
         </TooltipProvider>
       </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex min-w-[200px] flex-1 items-center gap-2">
+          <select
+            v-if="savedUrls.length > 0"
+            v-model="syncUrl"
+            class="h-7 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+            <option v-for="url in savedUrls" :key="url" :value="url">
+              {{ url }}
+            </option>
+          </select>
+          <input
+            v-else
+            id="sync-url-input"
+            v-model="syncUrl"
+            type="text"
+            placeholder="请输入页面 URL"
+            class="h-7 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
+          >
+        </div>
+        <div class="flex items-center gap-2">
+          <Button
+            size="xs"
+            :disabled="syncing || !syncUrl"
+            @click="handleSyncFromUrl"
+          >
+            <ArrowDownToLine class="h-3.5 w-3.5" />
+            <span>{{ syncing ? '同步中…' : '同步' }}</span>
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
+            :disabled="saving || !activeHost"
+            @click="saveSyncUrlConfig"
+          >
+            <Save class="h-3.5 w-3.5" />
+            <span>{{ saving ? '保存中…' : '保存配置' }}</span>
+          </Button>
+          <Button
+            v-if="savedUrls.length > 0"
+            size="xs"
+            variant="outline"
+            :disabled="!syncUrl"
+            @click="deleteSyncUrlConfig"
+          >
+            <X class="h-3.5 w-3.5" />
+            <span>删除</span>
+          </Button>
+        </div>
+      </div>
+
+      <input
+        v-if="savedUrls.length > 0"
+        v-model="newUrl"
+        type="text"
+        placeholder="或输入新的 URL"
+        class="h-7 w-full rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
+      >
     </div>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
