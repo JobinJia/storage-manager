@@ -30,13 +30,9 @@ export default defineConfig({
     }),
     tailwindcss(),
     webExtension({
+      browser: 'chrome',
       manifest: generateManifest,
       watchFilePaths: ['package.json', 'manifest.json'],
-      htmlViteConfig: {
-        server: {
-          port: 5000,
-        },
-      },
     }),
   ],
 })
