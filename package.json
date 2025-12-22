@@ -1,7 +1,7 @@
 {
   "name": "storage-manager",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "private": true,
   "packageManager": "pnpm@10.26.1",
   "scripts": {
