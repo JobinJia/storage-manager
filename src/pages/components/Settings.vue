@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { ArrowDownToLine, Copy as CopyIcon, Info, Link2, Save, Trash2, X } from 'lucide-vue-next'
+import { ArrowDownToLine, Check, ChevronDown, Copy as CopyIcon, Info, Link2, Plus, Trash2 } from 'lucide-vue-next'
+import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -32,6 +33,7 @@ const statusMessage = ref('')
 const clearDialogOpen = ref(false)
 const saving = ref(false)
 const activeHost = ref('')
+const urlDropdownOpen = ref(false)
 let statusTimer: ReturnType<typeof window.setTimeout> | null = null
 
 function showStatus(message: string, duration = 2000) {
@@ -99,7 +101,7 @@ async function getActiveTabId() {
   return tab?.id ?? null
 }
 
-async function handleSyncFromUrl() {
+async function doSyncFromUrl(url: string) {
   if (syncing.value)
     return
 
@@ -108,7 +110,7 @@ async function handleSyncFromUrl() {
     return
   }
 
-  const targetUrl = normalizeUrl(syncUrl.value)
+  const targetUrl = normalizeUrl(url)
   if (!targetUrl) {
     showStatus('请输入有效的 URL')
     return
@@ -205,6 +207,10 @@ async function handleSyncFromUrl() {
     if (tempTabId)
       chrome.tabs.remove(tempTabId, () => chrome.runtime.lastError)
   }
+}
+
+function handleSyncFromUrl() {
+  return doSyncFromUrl(syncUrl.value)
 }
 
 async function clearAllStorage() {
@@ -365,8 +371,7 @@ async function saveSyncUrlConfig() {
 
   saving.value = true
 
-  // 优先使用 newUrl,如果为空则使用 syncUrl (用于保存第一个URL的场景)
-  const urlToSave = savedUrls.value.length > 0 ? newUrl.value.trim() : syncUrl.value.trim()
+  const urlToSave = newUrl.value.trim()
 
   if (!urlToSave) {
     showStatus('请输入URL')
@@ -408,7 +413,14 @@ async function saveSyncUrlConfig() {
   }
 }
 
-async function deleteSyncUrlConfig() {
+function selectUrl(url: string) {
+  setSyncUrl(url)
+  urlDropdownOpen.value = false
+}
+
+async function deleteSyncUrlConfig(urlToDelete: string, event?: MouseEvent) {
+  event?.stopPropagation()
+
   if (!activeHost.value) {
     showStatus('未识别当前页面')
     return
@@ -419,7 +431,7 @@ async function deleteSyncUrlConfig() {
     return
   }
 
-  const trimmed = syncUrl.value.trim()
+  const trimmed = urlToDelete.trim()
   if (!trimmed) {
     showStatus('请选择要删除的URL')
     return
@@ -442,7 +454,9 @@ async function deleteSyncUrlConfig() {
 
     await writeSyncUrlMap(map)
     savedUrls.value = filtered
-    setSyncUrl(filtered[0] ?? '')
+    // If deleted URL was selected, select the first remaining URL
+    if (syncUrl.value === trimmed)
+      setSyncUrl(filtered[0] ?? '')
     showStatus('已删除配置')
   } catch (error) {
     console.warn('Delete sync URL failed', error)
@@ -517,63 +531,77 @@ onMounted(() => {
       </div>
 
       <div class="flex flex-wrap items-center gap-2">
-        <div class="flex min-w-[200px] flex-1 items-center gap-2">
-          <select
-            v-if="savedUrls.length > 0"
-            v-model="syncUrl"
-            class="h-7 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
+        <PopoverRoot v-model:open="urlDropdownOpen">
+          <PopoverTrigger
+            :disabled="savedUrls.length === 0"
+            class="flex h-7 min-w-[200px] flex-1 items-center justify-between rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <option v-for="url in savedUrls" :key="url" :value="url">
-              {{ url }}
-            </option>
-          </select>
-          <input
-            v-else
-            id="sync-url-input"
-            v-model="syncUrl"
-            type="text"
-            placeholder="请输入页面 URL"
-            class="h-7 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
-          >
-        </div>
-        <div class="flex items-center gap-2">
-          <Button
-            size="xs"
-            :disabled="syncing || !syncUrl"
-            @click="handleSyncFromUrl"
-          >
-            <ArrowDownToLine class="h-3.5 w-3.5" />
-            <span>{{ syncing ? '同步中…' : '同步' }}</span>
-          </Button>
-          <Button
-            size="xs"
-            variant="outline"
-            :disabled="saving || !activeHost"
-            @click="saveSyncUrlConfig"
-          >
-            <Save class="h-3.5 w-3.5" />
-            <span>{{ saving ? '保存中…' : '保存配置' }}</span>
-          </Button>
-          <Button
-            v-if="savedUrls.length > 0"
-            size="xs"
-            variant="outline"
-            :disabled="!syncUrl"
-            @click="deleteSyncUrlConfig"
-          >
-            <X class="h-3.5 w-3.5" />
-            <span>删除</span>
-          </Button>
-        </div>
+            <span class="truncate">{{ syncUrl || '暂无保存的 URL' }}</span>
+            <ChevronDown class="h-3.5 w-3.5 shrink-0 opacity-50" />
+          </PopoverTrigger>
+          <PopoverPortal>
+            <PopoverContent
+              side="bottom"
+              align="start"
+              :side-offset="4"
+              class="z-50 max-h-[200px] min-w-[200px] overflow-y-auto rounded-md border border-border/60 bg-background p-1 shadow-md"
+            >
+              <div
+                v-if="savedUrls.length === 0"
+                class="px-2 py-1.5 text-xs text-muted-foreground"
+              >
+                暂无保存的 URL
+              </div>
+              <div
+                v-for="url in savedUrls"
+                :key="url"
+                class="group flex cursor-pointer items-center gap-1 rounded-sm px-2 py-1.5 text-xs hover:bg-muted/60"
+                @click="selectUrl(url)"
+              >
+                <Check
+                  class="h-3.5 w-3.5 shrink-0"
+                  :class="syncUrl === url ? 'opacity-100' : 'opacity-0'"
+                />
+                <span class="flex-1 truncate">{{ url }}</span>
+                <button
+                  type="button"
+                  class="ml-1 shrink-0 rounded p-0.5 text-destructive opacity-0 transition hover:bg-destructive/10 group-hover:opacity-100"
+                  @click="deleteSyncUrlConfig(url, $event)"
+                >
+                  <Trash2 class="h-3 w-3" />
+                </button>
+              </div>
+            </PopoverContent>
+          </PopoverPortal>
+        </PopoverRoot>
+        <Button
+          size="xs"
+          :disabled="syncing || !syncUrl"
+          @click="handleSyncFromUrl"
+        >
+          <ArrowDownToLine class="h-3.5 w-3.5" />
+          <span>{{ syncing ? '同步中…' : '同步' }}</span>
+        </Button>
       </div>
 
-      <input
-        v-if="savedUrls.length > 0"
-        v-model="newUrl"
-        type="text"
-        placeholder="或输入新的 URL"
-        class="h-7 w-full rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
-      >
+      <div class="flex flex-wrap items-center gap-2">
+        <input
+          id="sync-url-input"
+          v-model="newUrl"
+          type="text"
+          placeholder="添加新的 URL"
+          class="h-7 min-w-[200px] flex-1 rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
+          @keyup.enter="saveSyncUrlConfig"
+        >
+        <Button
+          size="xs"
+          :disabled="saving || !activeHost || !newUrl.trim()"
+          @click="saveSyncUrlConfig"
+        >
+          <Plus class="h-3.5 w-3.5" />
+          <span>{{ saving ? '添加中…' : '添加' }}</span>
+        </Button>
+      </div>
     </div>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
@@ -594,7 +622,9 @@ onMounted(() => {
     <AlertDialog
       v-model:open="clearDialogOpen"
       title="确认清除全部？"
-      description="将清空当前页面的 localStorage 与 sessionStorage"
+      description="将清空当前页面的 localStorage 与 sessionStorage，此操作不可恢复"
+      variant="destructive"
+      confirm-text="清除"
       @ok="clearAllStorage"
       @cancel="closeClearDialog"
     />

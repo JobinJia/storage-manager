@@ -41,10 +41,10 @@ All storage operations follow this pattern:
 3. Access storage: Script runs in page context to access `window.localStorage`/`sessionStorage`
 
 Key locations:
-- Read storage: `ContentList.vue:48-87` (`fetchStorageData`)
-- Update storage: `ContentList.vue:108-148` (`persistStorageUpdate`)
-- Delete storage: `ContentList.vue:288-320` (`removeStorageEntry`)
-- Sync from URL: `Settings.vue:102-208` (`handleSyncFromUrl`)
+- Read storage: `src/pages/components/ContentList.vue:48-87` (`fetchStorageData`)
+- Update storage: `src/pages/components/ContentList.vue:108-148` (`persistStorageUpdate`)
+- Delete storage: `src/pages/components/ContentList.vue:288-320` (`removeStorageEntry`)
+- Sync from URL: `src/pages/components/Settings.vue:102-208` (`handleSyncFromUrl`)
 
 ### Manifest Generation
 
@@ -69,8 +69,9 @@ pnpm lint:fix
 Vitest is configured (`vitest.config.ts`) with:
 - Environment: `happy-dom` (lightweight DOM simulation)
 - Setup file: `src/test/setup.ts`
-- Run tests: `vitest` (not in package.json scripts - run directly)
-- Coverage: `vitest --coverage` (uses v8 provider)
+- Run tests: `pnpm vitest` or `pnpm vitest run`
+- Run single test: `pnpm vitest <path>` (e.g., `pnpm vitest src/store/index.test.ts`)
+- Coverage: `pnpm vitest --coverage` (uses v8 provider)
 
 Test files use `.test.ts` suffix and are located alongside source files.
 
@@ -89,7 +90,7 @@ Test files use `.test.ts` suffix and are located alongside source files.
 
 ### Inline Editing Pattern
 
-`ContentList.vue` implements double-click-to-edit cells:
+`src/pages/components/ContentList.vue` implements double-click-to-edit cells:
 - `editingCell` ref tracks current edit (key + field)
 - `editingValue` holds temporary value
 - `saveEditingCell()` optimistically updates local state, then persists via Chrome API
@@ -97,7 +98,8 @@ Test files use `.test.ts` suffix and are located alongside source files.
 
 ### Sync URL Per-Host Persistence
 
-`Settings.vue:274-366` saves sync URL configurations per hostname:
+`src/pages/components/Settings.vue:274-451` saves sync URL configurations per hostname:
 - Storage key: `"syncUrlByHost"`
-- Structure: `{ "example.com": "https://staging.example.com", ... }`
+- Structure: `{ "example.com": ["https://staging.example.com", ...], ... }` (array of URLs per host)
 - Auto-loads config for current tab's host on mount
+- Supports multiple saved URLs per host with add/delete operations
