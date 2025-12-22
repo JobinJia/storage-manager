@@ -10,7 +10,8 @@
     "dev:build": "vite build --watch --mode development",
     "build": "vue-tsc && vite build",
     "lint:fix": "eslint . --fix",
-    "updeps": "taze -r -w"
+    "updeps": "taze -r -w",
+    "release": "bumpp --commit --tag --push"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
@@ -36,6 +37,7 @@
     "@unocss/preset-uno": "^66.5.10",
     "@unocss/preset-web-fonts": "^66.5.10",
     "@vitejs/plugin-vue": "^6.0.3",
+    "bumpp": "^10.3.2",
     "eslint": "^9.39.2",
     "jiti": "^2.6.1",
     "taze": "^19.9.2",
