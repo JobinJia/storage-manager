@@ -1,6 +1,12 @@
 <script lang="ts" setup>
-import { Globe, HardDrive, Sparkles } from 'lucide-vue-next'
-import { onMounted, ref } from 'vue'
+import { Globe, HardDrive, Languages, Sparkles } from 'lucide-vue-next'
+import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { toggleLocale } from '@/i18n'
+
+const { t, locale } = useI18n()
+
+const currentLocaleLabel = computed(() => locale.value === 'zh-CN' ? '中' : 'EN')
 
 const currentHost = ref('')
 
@@ -39,15 +45,26 @@ onMounted(updateCurrentUrl)
       </h1>
       <p class="flex items-center gap-1 text-[11px] text-muted-foreground">
         <Sparkles class="h-3 w-3 opacity-60" />
-        快速查看并管理当前标签页的存储
+        {{ t('header.subtitle') }}
       </p>
     </div>
-    <span
-      :title="currentHost"
-      class="flex max-w-[200px] items-center gap-1 truncate rounded-full bg-secondary/80 px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground"
-    >
-      <Globe class="h-3.5 w-3.5 flex-shrink-0" />
-      {{ currentHost || '加载中…' }}
-    </span>
+    <div class="flex items-center gap-1.5">
+      <button
+        type="button"
+        class="flex h-6 items-center gap-1 rounded-full bg-secondary/80 px-2 text-[11px] font-medium text-secondary-foreground transition hover:bg-secondary"
+        :title="t('header.switchLang')"
+        @click="toggleLocale"
+      >
+        <Languages class="h-3.5 w-3.5" />
+        <span>{{ currentLocaleLabel }}</span>
+      </button>
+      <span
+        :title="currentHost"
+        class="flex max-w-[160px] items-center gap-1 truncate rounded-full bg-secondary/80 px-2.5 py-0.5 text-[11px] font-medium text-secondary-foreground"
+      >
+        <Globe class="h-3.5 w-3.5 flex-shrink-0" />
+        {{ currentHost || t('header.loading') }}
+      </span>
+    </div>
   </header>
 </template>

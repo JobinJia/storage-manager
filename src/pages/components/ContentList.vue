@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Check, Copy, Plus, Trash2 } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -13,6 +14,8 @@ import {
 } from '@/components/ui/table'
 import { useStore } from '@/store'
 import AlertDialog from './AlertDialog.vue'
+
+const { t } = useI18n()
 
 const { type = 'localStorage' } = defineProps<{
   type: 'localStorage' | 'sessionStorage' | 'indexedDB'
@@ -341,7 +344,7 @@ async function handleAddEntry() {
 
   const key = newEntryKey.value.trim()
   if (!key) {
-    showFeedback('请输入键名')
+    showFeedback(t('message.enterKeyName'))
     return
   }
 
@@ -360,17 +363,17 @@ async function handleAddEntry() {
   try {
     const persisted = await persistStorageUpdate(key, nextEntry)
     if (!persisted) {
-      showFeedback('保存失败，请重试')
+      showFeedback(t('message.saveFailed'))
       loadStorageData()
       return
     }
 
-    showFeedback(existingIndex === -1 ? `已添加 ${key}` : `已更新 ${key}`)
+    showFeedback(existingIndex === -1 ? t('message.added', { name: key }) : t('message.updated', { name: key }))
     newEntryKey.value = ''
     newEntryValue.value = ''
   } catch (error) {
     console.warn('Add storage entry failed', error)
-    showFeedback('保存失败，请重试')
+    showFeedback(t('message.saveFailed'))
     loadStorageData()
   } finally {
     adding.value = false
@@ -411,8 +414,8 @@ async function copyEntry(entry: StorageEntry, event?: MouseEvent) {
     ? `${storageIdentifier}.setItem(${keySnippet}, ${valueSnippet})`
     : entry.value
   const successMessage = copyAsJsSnippet.value
-    ? `已复制 ${storageIdentifier}.setItem(${entry.name}, ...)`
-    : '值已复制'
+    ? t('message.copiedJs', { code: `${storageIdentifier}.setItem(${entry.name}, ...)` })
+    : t('message.copiedValue')
 
   // 复制成功闪烁效果
   function showCopySuccess() {
@@ -445,7 +448,7 @@ async function copyEntry(entry: StorageEntry, event?: MouseEvent) {
     showCopySuccess()
   } catch (error) {
     console.warn('Fallback clipboard copy failed', error)
-    showFeedback('复制失败，请重试')
+    showFeedback(t('message.copyFailed'))
   }
   document.body.removeChild(textarea)
 }
@@ -502,7 +505,7 @@ async function confirmDelete() {
   }
 
   if (type === 'indexedDB') {
-    showFeedback('暂不支持删除 IndexedDB 数据')
+    showFeedback(t('message.indexedDbNotSupported'))
     closeDeleteDialog()
     return
   }
@@ -513,9 +516,9 @@ async function confirmDelete() {
     if (editingCell.value?.key === entry.name)
       cancelEditingCell()
     loadStorageData()
-    showFeedback(`已删除 ${entry.name}`)
+    showFeedback(t('message.deleted', { name: entry.name }))
   } else {
-    showFeedback('删除失败，请重试')
+    showFeedback(t('message.deleteFailed'))
   }
 
   closeDeleteDialog()
@@ -556,14 +559,14 @@ watch(searchKey, () => {
             <input
               v-model="newEntryKey"
               type="text"
-              placeholder="键名"
+              :placeholder="t('table.keyPlaceholder')"
               class="h-6 min-w-[100px] flex-1 rounded border border-border/60 bg-background px-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/30"
               @keyup.enter.prevent="handleAddEntry"
             >
             <input
               v-model="newEntryValue"
               type="text"
-              placeholder="值"
+              :placeholder="t('table.valuePlaceholder')"
               class="h-6 flex-1 rounded border border-border/60 bg-background px-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/30"
               @keyup.enter.prevent="handleAddEntry"
             >
@@ -574,13 +577,13 @@ watch(searchKey, () => {
               @click="handleAddEntry"
             >
               <Plus class="h-3 w-3" />
-              <span>{{ adding ? '…' : '添加' }}</span>
+              <span>{{ adding ? t('table.adding') : t('table.add') }}</span>
             </Button>
           </div>
           <input
             v-model="searchKey"
             type="search"
-            placeholder="搜索键名..."
+            :placeholder="t('table.searchPlaceholder')"
             class="h-6 w-full rounded border border-border/60 bg-background px-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/30"
             @keyup.esc.prevent="searchKey = ''"
           >
@@ -596,13 +599,13 @@ watch(searchKey, () => {
             <TableHeader class="sticky top-0 z-10 bg-card/95 backdrop-blur">
               <TableRow class="text-[10px] uppercase tracking-wide text-muted-foreground">
                 <TableHead class="w-[32%] py-1.5 pr-2">
-                  键
+                  {{ t('table.key') }}
                 </TableHead>
                 <TableHead class="py-1.5 pr-2">
-                  值
+                  {{ t('table.value') }}
                 </TableHead>
                 <TableHead class="w-[56px] py-1.5 text-right">
-                  操作
+                  {{ t('table.actions') }}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -688,12 +691,12 @@ watch(searchKey, () => {
               </TableRow>
               <TableRow v-if="!filteredData.length">
                 <TableCell colspan="3" class="py-6 text-center text-[11px] text-muted-foreground">
-                  {{ currentData.length && searchKey.trim() ? '没有匹配的键名' : '暂无数据' }}
+                  {{ currentData.length && searchKey.trim() ? t('table.noMatch') : t('table.noData') }}
                 </TableCell>
               </TableRow>
             </TableBody>
             <TableCaption v-if="filteredData.length" class="px-2 py-1.5 text-left text-[10px] text-muted-foreground">
-              点击选中 · 再点编辑 · ↑↓ 导航 · ⌘C 复制
+              {{ t('table.help') }}
             </TableCaption>
           </Table>
         </div>
@@ -701,8 +704,8 @@ watch(searchKey, () => {
     </div>
     <AlertDialog
       v-model:open="deleteDialogOpen"
-      :title="pendingDelete ? `确认删除 ${pendingDelete.name}？` : '确认删除？'"
-      description="删除后不可恢复"
+      :title="pendingDelete ? t('dialog.deleteTitle', { name: pendingDelete.name }) : t('dialog.deleteDefaultTitle')"
+      :description="t('dialog.deleteDescription')"
       @ok="confirmDelete"
       @cancel="closeDeleteDialog"
     />

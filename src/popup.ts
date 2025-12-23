@@ -1,5 +1,6 @@
 import { createApp } from 'vue'
 import Popup from './pages/Popup.vue'
+import i18n, { initLocale } from './i18n'
 
 import './style/index.css'
 
@@ -41,4 +42,6 @@ window.addEventListener('beforeunload', () => {
     cleanupListeners.pop()?.()
 })
 
-createApp(Popup).mount('body')
+initLocale().then(() => {
+  createApp(Popup).use(i18n).mount('body')
+})

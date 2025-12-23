@@ -2,6 +2,7 @@
 import { ArrowDownToLine, Check, ChevronDown, Copy as CopyIcon, Info, Plus, Trash2 } from 'lucide-vue-next'
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -14,6 +15,8 @@ import {
 import { useStore } from '@/store'
 
 import AlertDialog from './AlertDialog.vue'
+
+const { t } = useI18n()
 
 const { storeData, setCopyType, setSyncUrl, triggerRefresh } = useStore()
 
@@ -70,7 +73,7 @@ function waitForTabLoad(tabId: number) {
   return new Promise<void>((resolve, reject) => {
     const timeout = window.setTimeout(() => {
       cleanup()
-      reject(new Error('加载超时'))
+      reject(new Error(t('message.loadTimeout')))
     }, 15000)
 
     function listener(updatedTabId: number, info: any) {
@@ -106,32 +109,32 @@ async function doSyncFromUrl(url: string) {
     return
 
   if (typeof chrome === 'undefined' || !chrome.tabs?.create || !chrome.tabs?.remove || !chrome.scripting?.executeScript) {
-    showStatus('当前环境不支持同步')
+    showStatus(t('message.envNotSupported'))
     return
   }
 
   const targetUrl = normalizeUrl(url)
   if (!targetUrl) {
-    showStatus('请输入有效的 URL')
+    showStatus(t('message.invalidUrl'))
     return
   }
 
   const activeTab = await getActiveTab()
   const activeTabId = activeTab?.id ?? null
   if (!activeTabId) {
-    showStatus('未找到当前标签页')
+    showStatus(t('message.tabNotFound'))
     return
   }
 
   syncing.value = true
-  showStatus('正在同步...', 8000)
+  showStatus(t('message.syncing'), 8000)
 
   let tempTabId: number | null = null
   try {
     const tempTab = await new Promise<chrome.tabs.Tab>((resolve, reject) => {
       chrome.tabs.create({ url: targetUrl, active: false }, (tab) => {
         if (chrome.runtime.lastError || !tab?.id)
-          reject(new Error(chrome.runtime.lastError?.message || '无法打开指定页面'))
+          reject(new Error(chrome.runtime.lastError?.message || t('message.pageNotOpened')))
         else
           resolve(tab)
       })
@@ -139,7 +142,7 @@ async function doSyncFromUrl(url: string) {
 
     tempTabId = tempTab.id ?? null
     if (!tempTabId)
-      throw new Error('无法打开指定页面')
+      throw new Error(t('message.pageNotOpened'))
 
     await waitForTabLoad(tempTabId)
 
@@ -172,7 +175,7 @@ async function doSyncFromUrl(url: string) {
 
     const entries = remoteResults[0]?.result
     if (!entries)
-      throw new Error('未读取到远程数据')
+      throw new Error(t('message.remoteDataNotFound'))
 
     await chrome.scripting.executeScript({
       target: { tabId: activeTabId },
@@ -198,10 +201,10 @@ async function doSyncFromUrl(url: string) {
     })
 
     triggerRefresh()
-    showStatus('同步完成')
+    showStatus(t('message.syncComplete'))
   } catch (error) {
     console.warn('Sync from URL failed', error)
-    showStatus('同步失败，请检查 URL 或权限')
+    showStatus(t('message.syncFailed'))
   } finally {
     syncing.value = false
     if (tempTabId)
@@ -220,17 +223,17 @@ async function clearAllStorage() {
   clearDialogOpen.value = false
 
   if (typeof chrome === 'undefined' || !chrome.tabs?.query || !chrome.scripting?.executeScript) {
-    showStatus('当前环境不支持清理')
+    showStatus(t('message.envNotSupportedClear'))
     return
   }
 
   clearing.value = true
-  showStatus('正在清除...', 4000)
+  showStatus(t('message.clearingStatus'), 4000)
 
   try {
     const activeTabId = await getActiveTabId()
     if (!activeTabId)
-      throw new Error('未找到当前标签页')
+      throw new Error(t('message.tabNotFound'))
 
     await chrome.scripting.executeScript({
       target: { tabId: activeTabId },
@@ -251,10 +254,10 @@ async function clearAllStorage() {
     })
 
     triggerRefresh()
-    showStatus('已清除全部')
+    showStatus(t('message.cleared'))
   } catch (error) {
     console.warn('Clear storage failed', error)
-    showStatus('清除失败，请重试')
+    showStatus(t('message.clearFailed'))
   } finally {
     clearing.value = false
   }
@@ -416,12 +419,12 @@ async function saveSyncUrlConfig() {
     return
 
   if (!activeHost.value) {
-    showStatus('未识别当前页面')
+    showStatus(t('message.pageNotRecognized'))
     return
   }
 
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    showStatus('当前环境不支持保存')
+    showStatus(t('message.envNotSupportedSave'))
     return
   }
 
@@ -430,14 +433,14 @@ async function saveSyncUrlConfig() {
   const urlToSave = newUrl.value.trim()
 
   if (!urlToSave) {
-    showStatus('请输入URL')
+    showStatus(t('message.enterUrl'))
     saving.value = false
     return
   }
 
   const normalized = normalizeUrl(urlToSave)
   if (!normalized) {
-    showStatus('请输入有效的URL')
+    showStatus(t('message.invalidUrl'))
     saving.value = false
     return
   }
@@ -448,7 +451,7 @@ async function saveSyncUrlConfig() {
 
     // 检查是否已存在
     if (urls.includes(normalized)) {
-      showStatus('URL已存在')
+      showStatus(t('message.urlExists'))
       saving.value = false
       return
     }
@@ -462,10 +465,10 @@ async function saveSyncUrlConfig() {
     // 保存选中状态
     await writeSelectedUrl(activeHost.value, normalized)
     newUrl.value = ''
-    showStatus('配置已保存')
+    showStatus(t('message.configSaved'))
   } catch (error) {
     console.warn('Save sync URL failed', error)
-    showStatus('保存失败，请重试')
+    showStatus(t('message.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -488,18 +491,18 @@ async function deleteSyncUrlConfig(urlToDelete: string, event?: MouseEvent) {
   event?.stopPropagation()
 
   if (!activeHost.value) {
-    showStatus('未识别当前页面')
+    showStatus(t('message.pageNotRecognized'))
     return
   }
 
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    showStatus('当前环境不支持删除')
+    showStatus(t('message.envNotSupportedDelete'))
     return
   }
 
   const trimmed = urlToDelete.trim()
   if (!trimmed) {
-    showStatus('请选择要删除的URL')
+    showStatus(t('message.selectUrlToDelete'))
     return
   }
 
@@ -509,7 +512,7 @@ async function deleteSyncUrlConfig(urlToDelete: string, event?: MouseEvent) {
     const filtered = urls.filter(u => u !== trimmed)
 
     if (filtered.length === urls.length) {
-      showStatus('URL不存在')
+      showStatus(t('message.urlNotExists'))
       return
     }
 
@@ -526,10 +529,10 @@ async function deleteSyncUrlConfig(urlToDelete: string, event?: MouseEvent) {
       setSyncUrl(newSelected)
       await writeSelectedUrl(activeHost.value, newSelected)
     }
-    showStatus('已删除配置')
+    showStatus(t('message.configDeleted'))
   } catch (error) {
     console.warn('Delete sync URL failed', error)
-    showStatus('删除失败，请重试')
+    showStatus(t('message.deleteFailed'))
   }
 }
 
@@ -548,11 +551,11 @@ onMounted(() => {
           class="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
         >
           <CopyIcon class="h-3.5 w-3.5" />
-          <span>复制模式</span>
+          <span>{{ t('settings.copyMode') }}</span>
         </Label>
         <Switch id="copy-mode-switch" v-model="copyType" class="scale-75" />
         <span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-          {{ copyType ? 'JS' : '值' }}
+          {{ copyType ? t('settings.copyModeJs') : t('settings.copyModeValue') }}
         </span>
         <TooltipProvider>
           <Tooltip>
@@ -565,7 +568,7 @@ onMounted(() => {
               </button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>JS 模式复制为 storage.setItem(key, value)</p>
+              <p>{{ t('settings.copyModeTooltip') }}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -581,7 +584,7 @@ onMounted(() => {
           @click="openClearDialog"
         >
           <Trash2 class="h-3 w-3" />
-          <span>{{ clearing ? '清除中…' : '清除全部' }}</span>
+          <span>{{ clearing ? t('settings.clearing') : t('settings.clearAll') }}</span>
         </Button>
       </div>
     </div>
@@ -593,7 +596,7 @@ onMounted(() => {
           :disabled="savedUrls.length === 0"
           class="flex h-6 min-w-0 flex-1 items-center justify-between rounded border border-border/60 bg-background px-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <span class="truncate">{{ syncUrl || '暂无保存的 URL' }}</span>
+          <span class="truncate">{{ syncUrl || t('settings.noSavedUrl') }}</span>
           <ChevronDown class="ml-1 h-3 w-3 shrink-0 opacity-50" />
         </PopoverTrigger>
         <PopoverPortal>
@@ -607,7 +610,7 @@ onMounted(() => {
               v-if="savedUrls.length === 0"
               class="px-2 py-1.5 text-xs text-muted-foreground"
             >
-              暂无保存的 URL
+              {{ t('settings.noSavedUrl') }}
             </div>
             <div
               v-for="url in savedUrls"
@@ -641,12 +644,12 @@ onMounted(() => {
                 @click="handleSyncFromUrl"
               >
                 <ArrowDownToLine class="h-3 w-3" />
-                <span>{{ syncing ? '…' : '同步' }}</span>
+                <span>{{ syncing ? t('settings.syncing') : t('settings.sync') }}</span>
               </Button>
             </span>
           </TooltipTrigger>
           <TooltipContent>
-            <p>读取指定页面的 storage 并同步到当前页面</p>
+            <p>{{ t('settings.syncTooltip') }}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -658,7 +661,7 @@ onMounted(() => {
         id="sync-url-input"
         v-model="newUrl"
         type="text"
-        placeholder="添加新的同步 URL"
+        :placeholder="t('settings.addUrlPlaceholder')"
         class="h-6 min-w-0 flex-1 rounded border border-border/60 bg-background px-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/30"
         @keyup.enter="saveSyncUrlConfig"
       >
@@ -669,16 +672,16 @@ onMounted(() => {
         @click="saveSyncUrlConfig"
       >
         <Plus class="h-3 w-3" />
-        <span>{{ saving ? '…' : '添加' }}</span>
+        <span>{{ saving ? t('settings.adding') : t('settings.add') }}</span>
       </Button>
     </div>
 
     <AlertDialog
       v-model:open="clearDialogOpen"
-      title="确认清除全部？"
-      description="将清空当前页面的 localStorage 与 sessionStorage，此操作不可恢复"
+      :title="t('dialog.clearTitle')"
+      :description="t('dialog.clearDescription')"
       variant="destructive"
-      confirm-text="清除"
+      :confirm-text="t('dialog.clear')"
       @ok="clearAllStorage"
       @cancel="closeClearDialog"
     />

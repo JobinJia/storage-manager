@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { Component } from 'vue'
 import { AlertTriangle, X } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,7 +14,9 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 
-const props = withDefaults(defineProps<{
+const { t } = useI18n()
+
+const props = defineProps<{
   title?: string
   description?: string
   icon?: Component
@@ -20,11 +24,11 @@ const props = withDefaults(defineProps<{
   confirmText?: string
   cancelText?: string
   variant?: 'default' | 'destructive'
-}>(), {
-  confirmText: '确认',
-  cancelText: '取消',
-  variant: 'default',
-})
+}>()
+
+const resolvedConfirmText = computed(() => props.confirmText ?? t('dialog.confirm'))
+const resolvedCancelText = computed(() => props.cancelText ?? t('dialog.cancel'))
+const resolvedVariant = computed(() => props.variant ?? 'default')
 
 const emit = defineEmits<{
   (e: 'ok'): void
@@ -59,14 +63,14 @@ function handleCancel() {
         @click="handleCancel"
       >
         <X class="h-4 w-4" />
-        <span class="sr-only">关闭</span>
+        <span class="sr-only">{{ t('dialog.close') }}</span>
       </button>
 
       <!-- Icon Section with Gradient Background -->
       <div
         :class="[
           'flex justify-center px-6 pb-2 pt-8',
-          variant === 'destructive'
+          resolvedVariant === 'destructive'
             ? 'bg-linear-to-b from-destructive/5 to-transparent'
             : 'bg-linear-to-b from-primary/5 to-transparent',
         ]"
@@ -74,7 +78,7 @@ function handleCancel() {
         <div
           :class="[
             'relative flex h-16 w-16 items-center justify-center rounded-2xl shadow-lg',
-            variant === 'destructive'
+            resolvedVariant === 'destructive'
               ? 'bg-linear-to-br from-destructive/90 to-destructive text-white'
               : 'bg-linear-to-br from-primary/90 to-primary text-white',
           ]"
@@ -83,7 +87,7 @@ function handleCancel() {
           <div
             :class="[
               'absolute inset-0 rounded-2xl opacity-30',
-              variant === 'destructive'
+              resolvedVariant === 'destructive'
                 ? 'ring-4 ring-destructive/20'
                 : 'ring-4 ring-primary/20',
             ]"
@@ -117,18 +121,18 @@ function handleCancel() {
           class="mt-0 flex-1 rounded-xl border border-border/80 bg-muted/30 py-2.5 text-sm font-medium text-foreground shadow-sm transition-all hover:bg-muted hover:shadow focus:ring-2 focus:ring-primary/20 focus:ring-offset-0"
           @click="emit('cancel')"
         >
-          {{ cancelText }}
+          {{ resolvedCancelText }}
         </AlertDialogCancel>
         <AlertDialogAction
           :class="[
             'flex-1 rounded-xl py-2.5 text-sm font-medium text-white shadow-sm transition-all focus:ring-2 focus:ring-offset-0',
-            variant === 'destructive'
+            resolvedVariant === 'destructive'
               ? 'bg-destructive shadow-destructive/25 hover:bg-destructive/90 hover:shadow-md hover:shadow-destructive/30 focus:ring-destructive/30'
               : 'bg-primary shadow-primary/25 hover:bg-primary/90 hover:shadow-md hover:shadow-primary/30 focus:ring-primary/30',
           ]"
           @click="emit('ok')"
         >
-          {{ confirmText }}
+          {{ resolvedConfirmText }}
         </AlertDialogAction>
       </div>
     </AlertDialogContent>
