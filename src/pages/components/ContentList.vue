@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Copy, Plus, Trash2 } from 'lucide-vue-next'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { Check, Copy, Plus, Trash2 } from 'lucide-vue-next'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Button } from '@/components/ui/button'
 import {
   Table,
@@ -37,6 +37,13 @@ const newEntryKey = ref('')
 const newEntryValue = ref('')
 const adding = ref(false)
 const searchKey = ref('')
+
+// 选中行状态
+const selectedRowKey = ref<string | null>(null)
+// 复制成功闪烁效果
+const copiedRowKey = ref<string | null>(null)
+// 表格容器引用
+const tableContainerRef = ref<HTMLElement | null>(null)
 
 const filteredData = computed(() => {
   const query = searchKey.value.trim().toLowerCase()
@@ -97,6 +104,155 @@ function startEditingCell(entry: StorageEntry, field: 'name' | 'value') {
   editingCell.value = { key: entry.name, field }
   editingOriginalName.value = entry.name
   editingValue.value = field === 'name' ? entry.name : entry.value
+  selectedRowKey.value = entry.name
+}
+
+// 选中行
+function selectRow(entry: StorageEntry) {
+  // 如果正在编辑其他行，先保存
+  if (editingCell.value && editingCell.value.key !== entry.name) {
+    saveEditingCell()
+  }
+  selectedRowKey.value = entry.name
+}
+
+// 单击进入编辑（如果已选中则编辑，否则先选中）
+function handleCellClick(entry: StorageEntry, field: 'name' | 'value') {
+  // 如果正在编辑其他单元格，先保存
+  if (editingCell.value && (editingCell.value.key !== entry.name || editingCell.value.field !== field)) {
+    saveEditingCell()
+    nextTick(() => {
+      selectRow(entry)
+    })
+    return
+  }
+  if (editingCell.value)
+    return
+  if (selectedRowKey.value === entry.name) {
+    startEditingCell(entry, field)
+  } else {
+    selectRow(entry)
+  }
+}
+
+// 点击表格容器时处理编辑状态
+function handleContainerClick(event: MouseEvent) {
+  if (!editingCell.value)
+    return
+
+  const target = event.target as HTMLElement
+  // 如果点击的是当前编辑的输入框，不做处理
+  if (target.tagName === 'INPUT')
+    return
+
+  // 点击其他区域（包括表头、其他行、空白区域）时保存编辑
+  saveEditingCell()
+}
+
+// 获取当前选中行的索引
+function getSelectedIndex() {
+  if (!selectedRowKey.value)
+    return -1
+  return filteredData.value.findIndex(item => item.name === selectedRowKey.value)
+}
+
+// 键盘导航
+function handleKeyDown(event: KeyboardEvent) {
+  // 如果正在编辑，不处理导航
+  if (editingCell.value)
+    return
+
+  const currentIndex = getSelectedIndex()
+
+  switch (event.key) {
+    case 'ArrowUp': {
+      event.preventDefault()
+      if (currentIndex > 0) {
+        selectedRowKey.value = filteredData.value[currentIndex - 1].name
+        scrollToSelectedRow()
+      } else if (currentIndex === -1 && filteredData.value.length > 0) {
+        selectedRowKey.value = filteredData.value[filteredData.value.length - 1].name
+        scrollToSelectedRow()
+      }
+      break
+    }
+    case 'ArrowDown': {
+      event.preventDefault()
+      if (currentIndex < filteredData.value.length - 1) {
+        selectedRowKey.value = filteredData.value[currentIndex + 1].name
+        scrollToSelectedRow()
+      } else if (currentIndex === -1 && filteredData.value.length > 0) {
+        selectedRowKey.value = filteredData.value[0].name
+        scrollToSelectedRow()
+      }
+      break
+    }
+    case 'Enter': {
+      event.preventDefault()
+      if (currentIndex >= 0) {
+        const entry = filteredData.value[currentIndex]
+        startEditingCell(entry, 'value')
+      }
+      break
+    }
+    case 'Tab': {
+      if (currentIndex >= 0 && !editingCell.value) {
+        event.preventDefault()
+        const entry = filteredData.value[currentIndex]
+        startEditingCell(entry, event.shiftKey ? 'value' : 'name')
+      }
+      break
+    }
+    case 'Escape': {
+      selectedRowKey.value = null
+      break
+    }
+    case 'c': {
+      if ((event.ctrlKey || event.metaKey) && currentIndex >= 0) {
+        event.preventDefault()
+        copyEntry(filteredData.value[currentIndex])
+      }
+      break
+    }
+    case 'Delete':
+    case 'Backspace': {
+      if (currentIndex >= 0 && !event.ctrlKey && !event.metaKey) {
+        event.preventDefault()
+        openDeleteDialog(filteredData.value[currentIndex])
+      }
+      break
+    }
+  }
+}
+
+// 编辑时的 Tab 切换
+function handleEditKeyDown(event: KeyboardEvent, entry: StorageEntry) {
+  if (event.key === 'Tab') {
+    event.preventDefault()
+    const currentField = editingCell.value?.field
+    if (currentField === 'name' && !event.shiftKey) {
+      saveEditingCell()
+      nextTick(() => startEditingCell(entry, 'value'))
+    } else if (currentField === 'value' && event.shiftKey) {
+      saveEditingCell()
+      nextTick(() => startEditingCell(entry, 'name'))
+    } else {
+      saveEditingCell()
+    }
+  }
+}
+
+// 滚动到选中行
+function scrollToSelectedRow() {
+  nextTick(() => {
+    const container = tableContainerRef.value
+    if (!container)
+      return
+    const selectedRow = container.querySelector('[data-selected="true"]') as HTMLElement
+    if (selectedRow) {
+      selectedRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+  })
 }
 
 function cancelEditingCell() {
@@ -258,10 +414,19 @@ async function copyEntry(entry: StorageEntry, event?: MouseEvent) {
     ? `已复制 ${storageIdentifier}.setItem(${entry.name}, ...)`
     : '值已复制'
 
+  // 复制成功闪烁效果
+  function showCopySuccess() {
+    copiedRowKey.value = entry.name
+    setTimeout(() => {
+      copiedRowKey.value = null
+    }, 600)
+    showFeedback(successMessage)
+  }
+
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(payload)
-      showFeedback(successMessage)
+      showCopySuccess()
       return
     }
   } catch (error) {
@@ -277,7 +442,7 @@ async function copyEntry(entry: StorageEntry, event?: MouseEvent) {
   textarea.select()
   try {
     document.execCommand('copy')
-    showFeedback(successMessage)
+    showCopySuccess()
   } catch (error) {
     console.warn('Fallback clipboard copy failed', error)
     showFeedback('复制失败，请重试')
@@ -369,64 +534,74 @@ watch(deleteDialogOpen, (isOpen) => {
   if (!isOpen)
     pendingDelete.value = null
 })
+
+// 清除选中状态当搜索变化时
+watch(searchKey, () => {
+  selectedRowKey.value = null
+})
 </script>
 
 <template>
-  <div class="relative flex h-full flex-col gap-2">
+  <div class="relative flex h-full flex-col gap-1">
     <div
       v-if="feedbackMessage"
-      class="pointer-events-none absolute right-3 top-3 z-20 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 shadow-md"
+      class="pointer-events-none absolute right-2 top-2 z-20 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 shadow"
     >
       {{ feedbackMessage }}
     </div>
     <div class="flex-1 overflow-hidden rounded-lg border border-border/60 bg-card shadow-sm">
       <div class="flex h-full flex-col">
-        <div class="flex flex-col gap-2 border-b border-border/60 bg-card/70 px-3 py-2">
-          <div class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-col gap-1.5 border-b border-border/60 bg-card/70 px-2 py-1.5">
+          <div class="flex items-center gap-1.5">
             <input
               v-model="newEntryKey"
               type="text"
               placeholder="键名"
-              class="h-7 min-w-[128px] flex-1 rounded-md border border-border/60 bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+              class="h-6 min-w-[100px] flex-1 rounded border border-border/60 bg-background px-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/30"
               @keyup.enter.prevent="handleAddEntry"
             >
             <input
               v-model="newEntryValue"
               type="text"
               placeholder="值"
-              class="h-7 flex-1 rounded-md border border-border/60 bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+              class="h-6 flex-1 rounded border border-border/60 bg-background px-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/30"
               @keyup.enter.prevent="handleAddEntry"
             >
             <Button
-              size="xs"
+              size="xxs"
               :disabled="adding || !newEntryKey.trim()"
+              class="shrink-0"
               @click="handleAddEntry"
             >
-              <Plus class="h-3.5 w-3.5" />
-              <span>{{ adding ? '保存中…' : '添加' }}</span>
+              <Plus class="h-3 w-3" />
+              <span>{{ adding ? '…' : '添加' }}</span>
             </Button>
           </div>
-          <div>
-            <input
-              v-model="searchKey"
-              type="search"
-              placeholder="搜索键名"
-              class="h-7 w-full rounded-md border border-border/60 bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
-              @keyup.esc.prevent="searchKey = ''"
-            >
-          </div>
+          <input
+            v-model="searchKey"
+            type="search"
+            placeholder="搜索键名..."
+            class="h-6 w-full rounded border border-border/60 bg-background px-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/30"
+            @keyup.esc.prevent="searchKey = ''"
+          >
         </div>
-        <div class="flex-1 overflow-y-auto overflow-x-hidden">
-          <Table class="w-full table-fixed text-xs">
+        <div
+          ref="tableContainerRef"
+          class="flex-1 overflow-y-auto overflow-x-hidden outline-none"
+          tabindex="0"
+          @keydown="handleKeyDown"
+          @click.capture="handleContainerClick"
+        >
+          <Table class="w-full table-fixed text-[11px]">
             <TableHeader class="sticky top-0 z-10 bg-card/95 backdrop-blur">
-              <TableRow class="text-[11px] uppercase tracking-wide text-muted-foreground">
-                <TableHead class="w-[32%] pr-3">
+              <TableRow class="text-[10px] uppercase tracking-wide text-muted-foreground">
+                <TableHead class="w-[32%] py-1.5 pr-2">
                   键
                 </TableHead>
-                <TableHead class="pr-3">
+                <TableHead class="py-1.5 pr-2">
                   值
                 </TableHead>
-                <TableHead class="w-[76px] text-right">
+                <TableHead class="w-[56px] py-1.5 text-right">
                   操作
                 </TableHead>
               </TableRow>
@@ -435,18 +610,28 @@ watch(deleteDialogOpen, (isOpen) => {
               <TableRow
                 v-for="item in filteredData"
                 :key="item.name"
-                class="cursor-pointer select-none border-b border-border/60 text-xs transition hover:bg-muted/40"
+                :data-selected="selectedRowKey === item.name"
+                class="group cursor-pointer select-none border-b border-border/60 transition"
+                :class="[
+                  selectedRowKey === item.name ? 'bg-primary/10 hover:bg-primary/15' : 'hover:bg-muted/40',
+                  copiedRowKey === item.name ? 'animate-pulse bg-emerald-100 dark:bg-emerald-900/30' : '',
+                ]"
+                @click="selectRow(item)"
                 @contextmenu.prevent="copyEntry(item, $event)"
               >
-                <TableCell class="pr-3 align-middle font-medium" @dblclick.stop="startEditingCell(item, 'name')">
+                <TableCell
+                  class="py-1 pr-2 align-middle font-medium"
+                  @click.stop="handleCellClick(item, 'name')"
+                >
                   <template v-if="editingCell && editingCell.key === item.name && editingCell.field === 'name'">
                     <input
                       v-model="editingValue"
-                      class="w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      class="w-full rounded border border-primary/50 bg-background px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/50"
                       autofocus
                       @blur="saveEditingCell"
                       @keyup.enter.prevent="saveEditingCell"
                       @keyup.esc.prevent="cancelEditingCell"
+                      @keydown="handleEditKeyDown($event, item)"
                     >
                   </template>
                   <template v-else>
@@ -455,54 +640,60 @@ watch(deleteDialogOpen, (isOpen) => {
                     </span>
                   </template>
                 </TableCell>
-                <TableCell class="pr-3 align-middle" @dblclick.stop="startEditingCell(item, 'value')">
+                <TableCell
+                  class="py-1 pr-2 align-middle"
+                  @click.stop="handleCellClick(item, 'value')"
+                >
                   <template v-if="editingCell && editingCell.key === item.name && editingCell.field === 'value'">
                     <input
                       v-model="editingValue"
-                      class="w-full rounded-md border border-border/60 bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      class="w-full rounded border border-primary/50 bg-background px-1.5 py-0.5 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/50"
                       autofocus
                       @blur="saveEditingCell"
                       @keyup.enter.prevent="saveEditingCell"
                       @keyup.esc.prevent="cancelEditingCell"
+                      @keydown="handleEditKeyDown($event, item)"
                     >
                   </template>
                   <template v-else>
-                    <span class="block overflow-hidden text-ellipsis whitespace-nowrap text-[11px] text-muted-foreground">
+                    <span class="block overflow-hidden text-ellipsis whitespace-nowrap text-[10px] text-muted-foreground">
                       {{ item.value }}
                     </span>
                   </template>
                 </TableCell>
-                <TableCell class="align-middle text-right">
-                  <div class="inline-flex items-center justify-end gap-1.5">
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      class="w-7 justify-center px-0 text-muted-foreground hover:bg-muted/60"
+                <TableCell class="py-1 align-middle text-right">
+                  <div class="inline-flex items-center justify-end gap-0.5">
+                    <button
+                      type="button"
+                      class="flex h-5 w-5 items-center justify-center rounded text-muted-foreground opacity-0 transition group-hover:opacity-100"
+                      :class="[
+                        selectedRowKey === item.name ? 'opacity-100' : '',
+                        copiedRowKey === item.name ? 'text-emerald-600' : 'hover:bg-muted/60 hover:text-foreground',
+                      ]"
                       @click.stop="copyEntry(item)"
                     >
-                      <Copy class="h-3.5 w-3.5" />
-                      <span class="sr-only">复制</span>
-                    </Button>
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      class="w-7 justify-center px-0 text-destructive hover:bg-destructive/10"
+                      <Check v-if="copiedRowKey === item.name" class="h-3 w-3" />
+                      <Copy v-else class="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      class="flex h-5 w-5 items-center justify-center rounded text-destructive/70 opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                      :class="selectedRowKey === item.name ? 'opacity-100' : ''"
                       @click.stop="openDeleteDialog(item)"
                     >
-                      <Trash2 class="h-3.5 w-3.5" />
-                      <span class="sr-only">删除</span>
-                    </Button>
+                      <Trash2 class="h-3 w-3" />
+                    </button>
                   </div>
                 </TableCell>
               </TableRow>
               <TableRow v-if="!filteredData.length">
-                <TableCell colspan="3" class="py-8 text-center text-xs text-muted-foreground">
-                  {{ currentData.length && searchKey.trim() ? '没有匹配的键名' : '暂无数据，尝试刷新或切换标签页' }}
+                <TableCell colspan="3" class="py-6 text-center text-[11px] text-muted-foreground">
+                  {{ currentData.length && searchKey.trim() ? '没有匹配的键名' : '暂无数据' }}
                 </TableCell>
               </TableRow>
             </TableBody>
-            <TableCaption class="px-3 py-2 text-left text-[11px] text-muted-foreground">
-              双击字段可编辑，右键行内容可快速复制
+            <TableCaption v-if="filteredData.length" class="px-2 py-1.5 text-left text-[10px] text-muted-foreground">
+              点击选中 · 再点编辑 · ↑↓ 导航 · ⌘C 复制
             </TableCaption>
           </Table>
         </div>
