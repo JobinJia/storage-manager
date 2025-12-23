@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ArrowDownToLine, Check, ChevronDown, Copy as CopyIcon, Info, Link2, Plus, Trash2 } from 'lucide-vue-next'
+import { ArrowDownToLine, Check, ChevronDown, Copy as CopyIcon, Info, Plus, Trash2 } from 'lucide-vue-next'
 import { PopoverContent, PopoverPortal, PopoverRoot, PopoverTrigger } from 'reka-ui'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { Button } from '@/components/ui/button'
@@ -278,8 +278,10 @@ function extractHost(url: string) {
 }
 
 const SYNC_URL_STORAGE_KEY = 'syncUrlByHost'
+const SELECTED_URL_STORAGE_KEY = 'selectedSyncUrlByHost'
 
 type SyncUrlMap = Record<string, string[]>
+type SelectedUrlMap = Record<string, string>
 
 async function readSyncUrlMap() {
   return new Promise<SyncUrlMap>((resolve) => {
@@ -331,6 +333,52 @@ async function writeSyncUrlMap(map: SyncUrlMap) {
   })
 }
 
+async function readSelectedUrlMap() {
+  return new Promise<SelectedUrlMap>((resolve) => {
+    if (!chrome.storage?.local) {
+      resolve({})
+      return
+    }
+    chrome.storage.local.get([SELECTED_URL_STORAGE_KEY], (items) => {
+      if (chrome.runtime?.lastError) {
+        console.warn('Failed to read selected url map', chrome.runtime.lastError)
+        resolve({})
+        return
+      }
+      const map = items?.[SELECTED_URL_STORAGE_KEY]
+      if (map && typeof map === 'object')
+        resolve(map as SelectedUrlMap)
+      else
+        resolve({})
+    })
+  })
+}
+
+async function writeSelectedUrl(host: string, url: string) {
+  return new Promise<void>((resolve, reject) => {
+    if (!chrome.storage?.local) {
+      resolve()
+      return
+    }
+    readSelectedUrlMap().then((map) => {
+      if (url)
+        map[host] = url
+      else
+        delete map[host]
+
+      chrome.storage.local.set({ [SELECTED_URL_STORAGE_KEY]: map }, () => {
+        const error = chrome.runtime?.lastError
+        if (error) {
+          console.warn('Failed to write selected url', error)
+          reject(new Error(error.message))
+          return
+        }
+        resolve()
+      })
+    })
+  })
+}
+
 const savedUrls = ref<string[]>([])
 const newUrl = ref('')
 
@@ -345,11 +393,19 @@ async function initializeSyncUrl() {
     if (!host || !chrome.storage?.local)
       return
 
-    const map = await readSyncUrlMap()
+    const [map, selectedMap] = await Promise.all([
+      readSyncUrlMap(),
+      readSelectedUrlMap(),
+    ])
     const urls = map[host] ?? []
     savedUrls.value = urls
-    // 默认选中第一个URL
-    setSyncUrl(urls[0] ?? '')
+
+    // 优先使用上次选中的 URL，否则使用第一个
+    const selectedUrl = selectedMap[host]
+    if (selectedUrl && urls.includes(selectedUrl))
+      setSyncUrl(selectedUrl)
+    else
+      setSyncUrl(urls[0] ?? '')
   } catch (error) {
     console.warn('Failed to initialize sync url', error)
   }
@@ -403,6 +459,8 @@ async function saveSyncUrlConfig() {
     await writeSyncUrlMap(map)
     savedUrls.value = map[activeHost.value]
     setSyncUrl(normalized)
+    // 保存选中状态
+    await writeSelectedUrl(activeHost.value, normalized)
     newUrl.value = ''
     showStatus('配置已保存')
   } catch (error) {
@@ -413,9 +471,17 @@ async function saveSyncUrlConfig() {
   }
 }
 
-function selectUrl(url: string) {
+async function selectUrl(url: string) {
   setSyncUrl(url)
   urlDropdownOpen.value = false
+  // 保存选中状态
+  if (activeHost.value) {
+    try {
+      await writeSelectedUrl(activeHost.value, url)
+    } catch (error) {
+      console.warn('Failed to save selected url', error)
+    }
+  }
 }
 
 async function deleteSyncUrlConfig(urlToDelete: string, event?: MouseEvent) {
@@ -455,8 +521,11 @@ async function deleteSyncUrlConfig(urlToDelete: string, event?: MouseEvent) {
     await writeSyncUrlMap(map)
     savedUrls.value = filtered
     // If deleted URL was selected, select the first remaining URL
-    if (syncUrl.value === trimmed)
-      setSyncUrl(filtered[0] ?? '')
+    if (syncUrl.value === trimmed) {
+      const newSelected = filtered[0] ?? ''
+      setSyncUrl(newSelected)
+      await writeSelectedUrl(activeHost.value, newSelected)
+    }
     showStatus('已删除配置')
   } catch (error) {
     console.warn('Delete sync URL failed', error)
@@ -470,9 +539,10 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="flex flex-col gap-2 rounded-lg border border-border/60 bg-card/80 px-3 py-2 shadow-sm">
-    <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-      <div class="flex flex-wrap items-center gap-1.5">
+  <section class="flex flex-col gap-1.5 rounded-lg border border-border/60 bg-card/80 px-3 py-2 shadow-sm">
+    <!-- 第一行：复制模式 + 清除全部 -->
+    <div class="flex items-center justify-between gap-2 text-xs">
+      <div class="flex items-center gap-1.5">
         <Label
           for="copy-mode-switch"
           class="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
@@ -481,142 +551,126 @@ onMounted(() => {
           <span>复制模式</span>
         </Label>
         <Switch id="copy-mode-switch" v-model="copyType" class="scale-75" />
-        <span class="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-          {{ copyType ? 'JS 代码' : '值' }}
+        <span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+          {{ copyType ? 'JS' : '值' }}
         </span>
-      </div>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger as-child>
-            <button
-              type="button"
-              class="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
-            >
-              <Info class="h-3.5 w-3.5" />
-              <span class="sr-only">复制模式说明</span>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>`js代码`将会复制为storage.setItem(key, value)</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    </div>
-
-    <div class="flex flex-col gap-2">
-      <div class="flex items-center gap-2 text-xs">
-        <Label
-          for="sync-url-input"
-          class="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
-        >
-          <Link2 class="h-3.5 w-3.5" />
-          <span>指定同步 URL</span>
-        </Label>
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger as-child>
               <button
                 type="button"
-                class="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-muted-foreground transition hover:bg-muted/80 hover:text-foreground"
+                class="flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition hover:text-foreground"
               >
-                <Info class="h-3.5 w-3.5" />
-                <span class="sr-only">同步说明</span>
+                <Info class="h-3 w-3" />
               </button>
             </TooltipTrigger>
             <TooltipContent>
-              <p>读取指定页面的 storage 并同步到当前页面</p>
+              <p>JS 模式复制为 storage.setItem(key, value)</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
-
-      <div class="flex flex-wrap items-center gap-2">
-        <PopoverRoot v-model:open="urlDropdownOpen">
-          <PopoverTrigger
-            :disabled="savedUrls.length === 0"
-            class="flex h-7 min-w-[200px] flex-1 items-center justify-between rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <span class="truncate">{{ syncUrl || '暂无保存的 URL' }}</span>
-            <ChevronDown class="h-3.5 w-3.5 shrink-0 opacity-50" />
-          </PopoverTrigger>
-          <PopoverPortal>
-            <PopoverContent
-              side="bottom"
-              align="start"
-              :side-offset="4"
-              class="z-50 max-h-[200px] min-w-[200px] overflow-y-auto rounded-md border border-border/60 bg-background p-1 shadow-md"
-            >
-              <div
-                v-if="savedUrls.length === 0"
-                class="px-2 py-1.5 text-xs text-muted-foreground"
-              >
-                暂无保存的 URL
-              </div>
-              <div
-                v-for="url in savedUrls"
-                :key="url"
-                class="group flex cursor-pointer items-center gap-1 rounded-sm px-2 py-1.5 text-xs hover:bg-muted/60"
-                @click="selectUrl(url)"
-              >
-                <Check
-                  class="h-3.5 w-3.5 shrink-0"
-                  :class="syncUrl === url ? 'opacity-100' : 'opacity-0'"
-                />
-                <span class="flex-1 truncate">{{ url }}</span>
-                <button
-                  type="button"
-                  class="ml-1 shrink-0 rounded p-0.5 text-destructive opacity-0 transition hover:bg-destructive/10 group-hover:opacity-100"
-                  @click="deleteSyncUrlConfig(url, $event)"
-                >
-                  <Trash2 class="h-3 w-3" />
-                </button>
-              </div>
-            </PopoverContent>
-          </PopoverPortal>
-        </PopoverRoot>
+      <div class="flex items-center gap-2">
+        <p v-if="statusMessage" class="text-[10px] font-medium text-muted-foreground">
+          {{ statusMessage }}
+        </p>
         <Button
-          size="xs"
-          :disabled="syncing || !syncUrl"
-          @click="handleSyncFromUrl"
+          size="xxs"
+          variant="destructive"
+          :disabled="clearing"
+          @click="openClearDialog"
         >
-          <ArrowDownToLine class="h-3.5 w-3.5" />
-          <span>{{ syncing ? '同步中…' : '同步' }}</span>
-        </Button>
-      </div>
-
-      <div class="flex flex-wrap items-center gap-2">
-        <input
-          id="sync-url-input"
-          v-model="newUrl"
-          type="text"
-          placeholder="添加新的 URL"
-          class="h-7 min-w-[200px] flex-1 rounded-md border border-border/60 bg-background px-2 text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-primary/30"
-          @keyup.enter="saveSyncUrlConfig"
-        >
-        <Button
-          size="xs"
-          :disabled="saving || !activeHost || !newUrl.trim()"
-          @click="saveSyncUrlConfig"
-        >
-          <Plus class="h-3.5 w-3.5" />
-          <span>{{ saving ? '添加中…' : '添加' }}</span>
+          <Trash2 class="h-3 w-3" />
+          <span>{{ clearing ? '清除中…' : '清除全部' }}</span>
         </Button>
       </div>
     </div>
 
-    <div class="flex flex-wrap items-center justify-between gap-2">
-      <Button
-        size="xs"
-        variant="destructive"
-        :disabled="clearing"
-        @click="openClearDialog"
+    <!-- 第二行：同步 URL 选择 -->
+    <div class="flex items-center gap-1.5">
+      <PopoverRoot v-model:open="urlDropdownOpen">
+        <PopoverTrigger
+          :disabled="savedUrls.length === 0"
+          class="flex h-6 min-w-0 flex-1 items-center justify-between rounded border border-border/60 bg-background px-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span class="truncate">{{ syncUrl || '暂无保存的 URL' }}</span>
+          <ChevronDown class="ml-1 h-3 w-3 shrink-0 opacity-50" />
+        </PopoverTrigger>
+        <PopoverPortal>
+          <PopoverContent
+            side="bottom"
+            align="start"
+            :side-offset="4"
+            class="z-50 max-h-[200px] min-w-[200px] overflow-y-auto rounded-md border border-border/60 bg-background p-1 shadow-md"
+          >
+            <div
+              v-if="savedUrls.length === 0"
+              class="px-2 py-1.5 text-xs text-muted-foreground"
+            >
+              暂无保存的 URL
+            </div>
+            <div
+              v-for="url in savedUrls"
+              :key="url"
+              class="group flex cursor-pointer items-center gap-1 rounded-sm px-2 py-1 text-[11px] hover:bg-muted/60"
+              @click="selectUrl(url)"
+            >
+              <Check
+                class="h-3 w-3 shrink-0"
+                :class="syncUrl === url ? 'opacity-100' : 'opacity-0'"
+              />
+              <span class="flex-1 truncate">{{ url }}</span>
+              <button
+                type="button"
+                class="ml-1 shrink-0 rounded p-0.5 text-destructive opacity-0 transition hover:bg-destructive/10 group-hover:opacity-100"
+                @click="deleteSyncUrlConfig(url, $event)"
+              >
+                <Trash2 class="h-3 w-3" />
+              </button>
+            </div>
+          </PopoverContent>
+        </PopoverPortal>
+      </PopoverRoot>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <span class="shrink-0">
+              <Button
+                size="xxs"
+                :disabled="syncing || !syncUrl"
+                @click="handleSyncFromUrl"
+              >
+                <ArrowDownToLine class="h-3 w-3" />
+                <span>{{ syncing ? '…' : '同步' }}</span>
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>读取指定页面的 storage 并同步到当前页面</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </div>
+
+    <!-- 第三行：添加新 URL -->
+    <div class="flex items-center gap-1.5">
+      <input
+        id="sync-url-input"
+        v-model="newUrl"
+        type="text"
+        placeholder="添加新的同步 URL"
+        class="h-6 min-w-0 flex-1 rounded border border-border/60 bg-background px-2 text-[11px] focus:outline-none focus:ring-1 focus:ring-primary/30"
+        @keyup.enter="saveSyncUrlConfig"
       >
-        <Trash2 class="h-3.5 w-3.5" />
-        <span>{{ clearing ? '清除中…' : '清除全部' }}</span>
+      <Button
+        size="xxs"
+        :disabled="saving || !activeHost || !newUrl.trim()"
+        class="shrink-0"
+        @click="saveSyncUrlConfig"
+      >
+        <Plus class="h-3 w-3" />
+        <span>{{ saving ? '…' : '添加' }}</span>
       </Button>
-      <p v-if="statusMessage" class="text-[11px] font-medium text-muted-foreground">
-        {{ statusMessage }}
-      </p>
     </div>
 
     <AlertDialog
